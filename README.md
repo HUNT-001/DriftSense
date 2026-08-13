@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # DriftSense — PS2, Semicon India Hackathon
 
 Reference-pattern localization in periodic semiconductor SEM imagery.
@@ -274,3 +275,7 @@ python -m experiments.ler_hypothesis --n_pairs 20
 python -m experiments.ler_stress --n_pairs 15
 python -m experiments.run_stage2 --all_tiers --top_k 150
 ```
+=======
+# DriftSense
+Drift-Sense — Physics-aware localization of semiconductor inspection patterns using LER fingerprints and robust image matching.
+>>>>>>> 507aee192cc95181ebe4f96a81625d3507cdb6de
