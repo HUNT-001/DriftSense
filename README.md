@@ -267,6 +267,164 @@ not assumed to be the innovation. It characterizes the ambiguity; LER breaks it.
   tiers used for reporting. A held-out split is needed before quoting these
   as generalization numbers.
 
+---
+
+# Stage 2A — spectral candidate generation (SOLVED: recall 77.5% → 100%)
+
+## Resolution: it was FFT bin quantization
+
+The FinFET failure was traced to a precise, quantitative cause. A global
+lattice model only stays in phase across the image if accumulated pitch error
+stays under half a period:
+
+```
+rel_pitch_err × span  <  pitch / 2
+```
+
+| structure | pitch | error budget | measured (before) | verdict |
+|---|---|---|---|---|
+| DRAM | 24 px | 1.20% | 0.9% | survives |
+| **FinFET fins** | 11 px | **0.55%** | **0.6%** | **fails** |
+
+And that 0.6% *was* the FFT bin quantization: for a 1000 px image the bin
+spacing is 1/1000 cyc/px, so at the fin frequency (k = 1/11) the quantization
+alone is 1.1%. **No sub-bin peak refinement was being done.**
+
+Adding parabolic sub-bin interpolation on log-power (`_refine_peak_subbin`):
+
+| | before | after |
+|---|---|---|
+| FinFET period error | 0.6% | **0.09%** |
+| DRAM period error | 0.9% | **0.26%** |
+
+Untrimmed lattice recall, by tier × family:
+
+| tier | DRAM before → after | FinFET before → after |
+|---|---|---|
+| clean | 100% → **100%** | 81% → **100%** |
+| nominal | 92% → **100%** | **41% → 100%** |
+| hard | 81% → **100%** | 79% → **93%** |
+
+## Second fix: do not rank lattice candidates by NCC
+
+Snapping lattice candidates to local NCC maxima and then *ranking them by
+NCC* collapsed all three generators to an identical 77.5% — the ranking
+re-imposes the photometric criterion and discards the structural constraint
+that generation just established.
+
+The lattice's value is that it reduces ~800,000 possible placements to ~1500
+structurally valid ones (a ~500× reduction) while retaining the truth.
+Ranking that set is the fingerprint's job, not NCC's.
+
+## End-to-end (hard tier, 20 pairs)
+
+| candidate source | recall | NCC Acc@5 | LER Acc@5 | gain | rescued | ms/pair |
+|---|---|---|---|---|---|---|
+| ncc top-150 | 75.0% | 10.0% | 35.0% | +25.0% | 5 | 477 |
+| **spectral lattice** | **100.0%** | 10.0% | **40.0%** | **+30.0%** | 6 | 4414 |
+
+Recall is solved. Accuracy moved far less (35% → 40%), and that is the
+informative part: **with 100% recall and 40% accuracy, the bottleneck has now
+definitively moved to discrimination.** Ranking ~1500 candidates is far harder
+than ranking 150, and hard-tier rotation degrades the fingerprint (measured
+27% in the 2.5–5° bucket). Cost is ~9× slower.
+
+**This makes Stage 2C (rotation compensation) the correct next task** — no
+longer on assumption, but because recall is saturated and discrimination is
+measurably the binding constraint.
+
+*Caveat: the end-to-end row is 20 pairs, so treat ±10% as noise. The recall
+and period-error numbers are the robust ones.*
+
+---
+
+# Stage 2A — original negative result (superseded, kept for the record)
+
+## Method
+
+The reference cannot sit anywhere: its content belongs to a periodic lattice,
+so it can only align at lattice-congruent positions. A 2-D FFT gives the two
+fundamental reciprocal vectors `k1, k2` (with `k_i · v_j = δ_ij`), which is
+**rotation-covariant** — a rotated lattice produces rotated Fourier peaks, so
+no separate orientation estimator is needed. Candidate translations solve
+
+```
+k_i · t  ≡  a_search,i − a_reference,i   (mod 1)
+t = V (Δa + [n, m]),   V = K⁻¹
+```
+
+Lattice estimation itself is accurate — recovered periods track the manifest
+closely (e.g. true 18.7/23.6 → estimated 18.5/23.8 px).
+
+## Result: recall@K did not improve
+
+| Tier | generator | R@10 | R@25 | R@50 | R@150 |
+|---|---|---|---|---|---|
+| clean | ncc_peaks | 100% | 100% | 100% | 100% |
+| clean | lattice | 97.5% | 97.5% | 97.5% | 97.5% |
+| nominal | ncc_peaks | 85% | 90% | 90% | **100%** |
+| nominal | lattice | 70% | 75% | 80% | 90% |
+| **hard** | ncc_peaks | 27.5% | 37.5% | 52.5% | **77.5%** |
+| **hard** | lattice | 27.5% | **40%** | **55%** | 75% |
+
+The target was 77.5% → 95%+ on `hard`. **That did not happen.** Lattice
+generation edges out NCC at K=25–50 but is equal-to-worse at K=150, and worse
+on clean/nominal. Stage 2A as built does not solve the recall bottleneck.
+
+## Two sub-findings worth keeping
+
+**Lattice candidates land in the right cell but at the wrong offset.**
+Untrimmed lattice recall on `hard` was 76%, with the nearest candidate a
+median of 2.6 px from truth (p75 = 4.9, max = 7.8) — straddling the 5 px
+tolerance. Cause: a global lattice assumes constant pitch, but pitch error
+*accumulates* — across ~42 periods in 1000 px, a 0.5% error becomes ~5 px of
+drift at the far edge. Adding `snap_to_local_ncc` (search radius ≪ pitch, so
+it cannot hop to an alias) lifted hard R@50 from 27.5% → 55%.
+
+**Ranking the union by NCC is worse than either generator alone.** It simply
+re-imposes the photometric criterion and discards the structural one.
+Interleaving the two ranked lists fixes this.
+
+## Root cause: it's FinFET, not the stressors
+
+Pooled correlations were badly confounded. Bucketing lattice recall by drift,
+noise and scale gave *nonsensical* trends — more drift (53%→88%) and more
+noise (60%→94%) both appeared to **improve** recall. Rotation showed no
+degradation either, refuting my initial hypothesis that ref/search geometric
+mismatch was to blame.
+
+Splitting by structure family explains all of it:
+
+| tier | DRAM | FinFET |
+|---|---|---|
+| clean | **100%** | 81% |
+| nominal | **92%** | **41%** |
+| hard | **81%** | 79% |
+
+Spectral lattice estimation works well on DRAM and fails on FinFET. FinFET's
+fin pitch (~11 px) and gate pitch (~45 px) differ by ~4×, so fin-frequency
+power dominates the spectrum and basis estimation mis-selects the weak gate
+peak. The earlier "lattice doesn't help" conclusion was too broad — it helps
+substantially on DRAM and is dragged down by FinFET.
+
+**Concrete next step:** make basis estimation robust to strongly anisotropic
+spectra (per-direction normalization, or explicit search for the weak second
+fundamental), then re-run this table. Do not re-tune Stage 2B against it.
+
+## Status
+
+| Stage | State |
+|---|---|
+| 1 — Data engine + baseline | done |
+| 2B — LER discrimination | **frozen** (`stage2_config.py`) |
+| 2A — Spectral candidates | **done** — recall 77.5% → 100% on hard |
+| 2C — Rotation compensation | **next** — now the measured bottleneck |
+| 3 — Unified system | not started |
+| 4 — Held-out eval | test set generated (seed 9999), **untouched** |
+
+`outputs/dataset_test/` (40 pairs × 4 tiers, GT audit 100%) has not been
+evaluated against. It stays sealed until the pipeline is final.
+
 ## Stage 2 usage
 
 ```bash
@@ -274,7 +432,22 @@ python -m tests.test_ler_fingerprint       # 12 tests
 python -m experiments.ler_hypothesis --n_pairs 20
 python -m experiments.ler_stress --n_pairs 15
 python -m experiments.run_stage2 --all_tiers --top_k 150
+python -m experiments.recall_study --all_tiers          # Stage 2A metric
 ```
+
+## Information-theoretic control
+
+The `ambiguous` tier removes all persistent LER / CD / defect information,
+making the scene exactly translationally periodic. Localization is then
+*fundamentally* impossible — every alias is an equally valid explanation of
+the observation.
+
+DriftSense scores **0% on that tier and does not attempt to exceed it.**
+
+That is the point. It demonstrates the reported gains come from exploiting
+real wafer physics rather than from a generator artifact or label leakage. A
+method that scored above chance here would be reading information that does
+not exist in a real inspection image.
 =======
 # DriftSense
 Drift-Sense — Physics-aware localization of semiconductor inspection patterns using LER fingerprints and robust image matching.
