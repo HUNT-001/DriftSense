@@ -1,622 +1,334 @@
-<<<<<<< HEAD
-# DriftSense — PS2, Semicon India Hackathon
+<!-- banner -->
+![Drift-Sense](docs/images/banner.png)
 
-Reference-pattern localization in periodic semiconductor SEM imagery.
-Given a small reference patch and a 1000×1000 search image, predict the
-reference centre `(x, y)`.
+<p align="center">
+  <b>A physics-informed engine for reference localization in periodic semiconductor inspection.</b><br>
+  PS2 · Applied Materials · Semicon India Hackathon
+</p>
 
-**Stage 1 (this repo, complete):** a physics-based synthetic data engine, a
-classical localization baseline, and a controlled failure analysis that
-identifies *exactly* why classical template matching fails.
-
----
-
-## The central finding
-
-Classical matching does not fail randomly on these structures. **It fails by
-locking onto the wrong period.**
-
-| Tier | What changes | NCC median error | NCC Acc@5px | Failures that are period aliases |
-|---|---|---|---|---|
-| `clean` | no rotation/scale, low noise | **0.3 px** | **100.0%** | — (no failures) |
-| `nominal` | ±1.5°, ±1.5% scale, mixed noise | 0.4 px | 82.5% | **100%** |
-| `hard` | ±5°, ±7% scale, heavy drift, low dose | 360.6 px | 17.5% | 45% |
-| `ambiguous` | **wafer physics disabled** | 347.6 px | **0.0%** | **100%** |
-
-`clean` and `ambiguous` use *identical* noise, blur and geometry settings.
-The only difference is whether line-edge roughness, CD variation and defects
-are enabled. That single change moves NCC from **100% → 0%**.
-
-Measured on the same image pair:
-
-- perfectly periodic scene → **553** locations within 2% of the peak NCC score
-- real wafer physics enabled → **2**
-
-![ambiguity](outputs/figures/ambiguity_demo.png)
-
-### Why this matters for the solution
-
-A perfectly periodic scene is **information-theoretically unsolvable** — every
-alias location is a genuinely equal explanation of the observation. No model,
-of any size, can win there.
-
-What makes the real task solvable is that wafers are *not* perfectly periodic.
-**Line-edge roughness is a permanent physical property of the etched wafer**,
-so two separate SEM scans of the same region observe the *same* roughness plus
-independent detector noise. LER is therefore a positional fingerprint.
-
-That is the design thesis for Stage 2: **the disambiguating signal is wafer
-physics, not model capacity.**
+<p align="center">
+  <img alt="tests" src="https://img.shields.io/badge/tests-31%20passing-2ea44f">
+  <img alt="python" src="https://img.shields.io/badge/python-3.10%2B-blue">
+  <img alt="approach" src="https://img.shields.io/badge/approach-classical%20CV%20%2B%20DSP-10A5A5">
+  <img alt="neural nets" src="https://img.shields.io/badge/neural%20nets-none%20required-E76F51">
+  <img alt="license" src="https://img.shields.io/badge/license-MIT-lightgrey">
+</p>
 
 ---
 
-## Data engine
+## TL;DR
 
-### Structures (`data_gen/structures.py`)
+Given a small **reference patch** and a **1000×1000 SEM search image** of a
+repetitive wafer (DRAM / FinFET), predict where the reference sits: `(x, y)`.
+Because the structure is periodic, **hundreds of locations look identical** and
+classical template matching locks onto the wrong copy.
 
-| Family | Variants | Notes |
-|---|---|---|
-| DRAM | `grid`, `staggered` | staggered = 6F² honeycomb offset, as in modern DRAM |
-| FinFET | `plain`, `fin_cut` | dense fins + sparse perpendicular gates + diffusion breaks |
+Drift-Sense reframes this as **two different information problems** and solves
+each with the right physics — no neural network:
 
-Aperiodic content that breaks translational ambiguity:
+|  | Question | Method | Result |
+|--|----------|--------|--------|
+| **Stage 2A** | *Where could it be?* | spectral lattice (FFT) | recall **77.5% → 100%** (hard tier) |
+| **Stage 2B** | *Which copy is it?* | persistent LER fingerprint | separation **d′ ≈ 4–5**, clean-tier **0% → 100%** |
 
-- **Line-edge roughness** — spatially-correlated edge displacement, σ ≈ 0.55 px,
-  correlation length ≈ 18 px. Generated **once per scene** and shared by both
-  acquisitions, because roughness is a property of the wafer, not of the scan.
-- **CD variation** — smooth linewidth drift across the exposure field (dose/focus).
-- **Contrast drift** — smooth material-contrast variation.
-- **Defects** — particles, bridges (shorts), opens. ~44 per scene.
+![two questions](docs/images/two_questions.png)
 
-### SEM rendering (`data_gen/sem_effects.py`)
-
-Applied in physical acquisition order:
-
-1. Beam blur (Gaussian PSF) — Bunday et al., *Proc. SPIE* 6152 (2006)
-2. Edge brightening (SE yield) — Goldstein et al., *SEM and X-Ray Microanalysis*, 4th ed. (2018)
-3. Specimen charging — Cazaux, *Ultramicroscopy* 60 (1995)
-4. Vignetting (collection efficiency) — Goldstein et al. (2018)
-5. Scan drift (raster shear) — Vladár & Postek, *Microscopy Today* 13(4) (2005)
-6. Photometric response (brightness/contrast/gamma)
-7. Scan-line gain jitter — Reimer, *Scanning Electron Microscopy*, 2nd ed. (1998)
-8. Shot noise (Poisson, 25–700 e⁻/px) — Postek & Vladár, *Scanning* 33 (2011)
-9. Detector read noise — Reimer (1998)
-
-![effects](outputs/figures/effects_ladder.png)
-
-### Ground truth
-
-The reference is cropped from the unwarped scene; the search image is the
-warped scene cropped to 1000×1000. The label is chosen first and the **full
-forward chain is inverted analytically** — reference-crop drift shear → affine
-rotation/scale → crop offset → search drift shear — to recover the scene
-coordinate to crop from. Pixels and labels therefore cannot disagree.
-
-Every generated pair is validated by a rotation/scale-compensated,
-alias-immune correlation audit:
-
-```
-clean      pass@3px=100.0%  median_offset=0.35px  max=0.68px
-nominal    pass@3px=100.0%  median_offset=0.39px  max=0.64px
-hard       pass@3px=100.0%  median_offset=0.52px  max=1.33px
-ambiguous  pass@3px=100.0%  median_offset=0.39px  max=0.68px
-```
+> **The one-line idea.** A perfectly periodic image is *information-theoretically*
+> unsolvable. Real wafers aren't perfectly periodic — **line-edge roughness (LER)
+> is a permanent physical property of the etched silicon**, so two separate scans
+> see the *same* roughness plus independent noise. That makes LER a positional
+> fingerprint. Frequency tells you *where a copy could be*; LER tells you *which
+> copy is real*.
 
 ---
 
-## Usage
+## Table of contents
+
+- [Why this is hard](#why-this-is-hard)
+- [Results at a glance](#results-at-a-glance)
+- [The architecture](#the-architecture)
+- [Contribution 1 — the synthetic data engine](#contribution-1--the-synthetic-data-engine)
+- [The core insight (with a control)](#the-core-insight-with-a-control)
+- [Why classical matching fails](#why-classical-matching-fails)
+- [Stage 2B — LER discrimination](#stage-2b--ler-discrimination)
+- [Stage 2A — spectral recall](#stage-2a--spectral-recall)
+- [Stage 2D — the candidate-budget boundary](#stage-2d--the-candidate-budget-boundary)
+- [Stage 2C/2E — distortion robustness](#stage-2c2e--distortion-robustness)
+- [Quickstart](#quickstart)
+- [Repository map](#repository-map)
+- [Scientific method & honesty notes](#scientific-method--honesty-notes)
+- [Roadmap](#roadmap)
+
+---
+
+## Why this is hard
+
+Wafers are dense periodic arrays. DRAM appears as orthogonal or 6F²-staggered
+grids; FinFET as high-frequency fins crossed by low-frequency gates. The 2-D
+frequency signatures differ, but *within* an image the pattern repeats — so a
+correlation matcher has hundreds of equally-good answers.
+
+![structure gallery](docs/images/structure_gallery.png)
+
+Applied Materials explicitly names periodic DRAM arrays and FinFET structures as
+failure cases for template matching. No dataset is provided, so **we build the
+simulator** — which turns dataset realism into a first-class, controllable part
+of the solution.
+
+---
+
+## Results at a glance
+
+![results bars](docs/images/results_bars.png)
+
+| Tier | What varies | NCC Acc@5 | **Drift-Sense Acc@5** | Recall@K |
+|------|-------------|-----------|-----------------------|----------|
+| `clean` | periodicity only | 100% | **100%** | 100% |
+| `nominal` | ±1.5° rot, mild noise | 82.5% | **87.5%** | 100% |
+| `hard` | ±5° rot, ±7% scale, low dose | 17.5% | **37.5%** | 100% |
+| `ambiguous` | **physics removed (control)** | 0% | **0%** | — |
+
+The `ambiguous` **0% is deliberate** — see [the control](#the-core-insight-with-a-control).
+
+> **Scope note.** Hard-tier end-to-end numbers are measured on 12–15 pairs
+> (treat ±10% as noise). Recall, period-estimation error, and descriptor-degradation
+> curves are the statistically robust results. A held-out test set (`outputs/dataset_test/`,
+> seed 9999) is generated and **sealed** — untouched until the pipeline is final.
+
+---
+
+## The architecture
+
+![pipeline](docs/images/pipeline_architecture.png)
+
+The system separates **recall** (get the truth into a small candidate set) from
+**discrimination** (identify it among the candidates) — a decomposition that is
+established *experimentally*, not assumed.
+
+![results journey](docs/images/results_journey.png)
+
+---
+
+## Contribution 1 — the synthetic data engine
+
+![data engine](docs/images/data_engine.png)
+
+A physics-based SEM simulator with **known, audited** ground truth.
+
+- **Structures** — DRAM grid / 6F² staggered / FinFET (+ fin-cuts), randomized pitch, phase, orientation.
+- **Wafer signal (shared between scans)** — line-edge roughness, critical-dimension variation, defects.
+- **9-stage SEM acquisition (independent per scan)** — beam blur, secondary-electron edge brightening, specimen charging, vignetting, scan drift, shot (Poisson) noise, read noise, photometric response, scan-line jitter. **Every effect cited** to the SEM/lithography literature.
+- **Ground truth** — the full forward chain (drift shear → affine rotation/scale → crop) is inverted analytically, then **self-audited: 100% correct at sub-pixel across all four tiers.**
+
+![SEM effects ladder](docs/images/effects_ladder.png)
+
+Two real bugs were found and fixed while hardening the engine — a line-rendering
+geometry error (the generator produced no actual structure) and a ground truth
+that ignored scan-drift shear. Both are now regression-tested.
+
+---
+
+## The core insight (with a control)
+
+![ambiguity demo](docs/images/ambiguity_demo.png)
+
+Two runs, **identical** noise/blur/geometry — the only difference is whether
+wafer physics (LER/CD/defects) is enabled:
+
+- **Perfectly periodic:** the NCC correlation surface has **553** locations within 2% of the peak — a lattice of equal answers.
+- **Real physics on:** **2** — a single dominant peak at the truth.
+
+This is why `ambiguous` scores **0%** and *should*: with the physics removed the
+problem is genuinely impossible, and a method that scored above chance there
+would be exploiting a generator artifact. Keeping this control proves the gains
+are real.
+
+---
+
+## Why classical matching fails
+
+![failure analysis](docs/images/failure_analysis_nominal_NCC.png)
+
+| Method | Mean err | Acc@5px | Acc@50px |
+|--------|----------|---------|----------|
+| NCC | 442 px | 0% | 7.5% |
+| Phase correlation | 377 px | 0% | 2.5% |
+| Multi-scale NCC | 442 px | 0% | 7.5% |
+
+**100% of failures are period aliases** — the error is an exact integer multiple
+of the structural pitch, not random noise. Proven by an error-vs-period analysis,
+not asserted.
+
+---
+
+## Stage 2B — LER discrimination
+
+![LER hypothesis](docs/images/ler_hypothesis.png)
+
+Switching LER on (and nothing else) moves replica discrimination from chance
+(0–10%, chance = 4%) to **95–100%**, with **d′ ≈ 3.9–5.0** vs 1.1–1.5 for raw NCC.
+The extractor recovers injected roughness at **correlation 0.997**, and still 0.89
+at the harshest dose (25 e⁻/px).
+
+Line correspondence is fixed by geometry and **never re-fit per candidate** — a
+deliberate guard against silent re-alignment leakage.
+
+---
+
+## Stage 2A — spectral recall
+
+The reference belongs to a periodic lattice, so it can only align at
+lattice-consistent positions. A 2-D FFT recovers the reciprocal basis
+(rotation-covariant — no separate orientation step).
+
+**Diagnosed like an engineer:** FinFET recall failed because a global pitch model
+drifts out of phase across 1000 px. The residual 0.6% pitch error was *pure FFT
+bin quantization*; sub-bin peak refinement closed it (**0.6% → 0.09%**) and
+hard-tier recall jumped **77.5% → 100%**.
+
+> error budget → measurement → constraint → targeted fix
+
+---
+
+## Stage 2D — the candidate-budget boundary
+
+![candidate budget](docs/images/candidate_budget.png)
+
+Shrinking the candidate set from 1500 → 25 nearly **doubles** accuracy
+(29% → 55%): competitor count is first-order. But a *cheap* structural prefilter
+is **provably impossible here** — all lattice candidates share one basis
+(identical pitch and orientation by construction), so only position-dependent
+signals differ, and **LER is the strongest of them**. This proves LER is not
+merely sufficient but *necessary*.
+
+---
+
+## Stage 2C/2E — distortion robustness
+
+![descriptor degradation](docs/images/descriptor_degradation.png)
+
+Measured, distortion by distortion: **rotation is the #1 descriptor degrader**
+(0.74 → 0.32 at 5°), scale is #2, drift is harmless, noise moderate. A derived
+error budget (0.79°, FinFET-limited) correctly predicts the ~2.5° break point.
+
+The localizer applies a **safe** geometric correction: it scores each candidate
+as `max(unwarped, dewarped)`, so a wrong rotation/scale estimate can only fail to
+help — never regress (leakage-safe: one global transform for all candidates).
+Hard tier **25% → 33%**; the oracle ceiling is 47%, with robust periodic-grid
+orientation identified as the one open blocker.
+
+---
+
+## Quickstart
 
 ```bash
 pip install -r requirements.txt
 
-python -m tests.test_datagen                       # 19 tests
-python -m data_gen.dataset_gen --all --n_pairs 40  # 160 pairs, ~2.7 min
-python -m experiments.run_baseline --all_tiers
+# 1) run the test suites (31 tests)
+python -m tests.test_datagen
+python -m tests.test_ler_fingerprint
+
+# 2) generate the tiered dataset (DRAM+FinFET, 4 difficulty tiers)
+python -m data_gen.dataset_gen --all --n_pairs 40 --seed 42
+
+# 3) classical baseline + periodicity failure analysis
+python -m experiments.run_baseline     --all_tiers
 python -m experiments.analyze_failures --all_tiers --method NCC
+
+# 4) Stage-2 experiments
+python -m experiments.ler_hypothesis          # LER discrimination
+python -m experiments.recall_study --all_tiers # spectral recall
+python -m experiments.candidate_budget --tier hard
+python -m experiments.descriptor_degradation
+python -m experiments.rotation_study
+
+# 5) qualitative figures
 python -m data_gen.visualize --all --tier clean
 ```
 
-## Layout
+---
+
+## Repository map
 
 ```
-config.py                        tier presets, all tunable physics
-data_gen/
-  structures.py                  DRAM / FinFET generators + LER + defects
-  sem_effects.py                 9-stage SEM acquisition model
-  scene_composer.py              exact-geometry pair composition + GT audit
-  dataset_gen.py                 tiered dataset driver
-  visualize.py                   QC and presentation figures
-localization/
-  baseline.py                    NCC, phase correlation, multi-scale pyramid
-experiments/
-  run_baseline.py                per-tier benchmark
-  analyze_failures.py            alias-vs-gross failure taxonomy
-tests/test_datagen.py            19 correctness tests
+DriftSense/
+├── README.md                 ← you are here
+├── config.py                 tier presets · all tunable physics in one place
+├── stage2_config.py          FROZEN Stage-2B params + dataset split policy
+├── requirements.txt
+│
+├── data_gen/                 THE DATA ENGINE
+│   ├── structures.py         DRAM / FinFET generators + LER + defects
+│   ├── sem_effects.py        9-stage SEM acquisition model (cited)
+│   ├── scene_composer.py     exact-geometry pair composition + GT self-audit
+│   ├── dataset_gen.py        tiered dataset driver
+│   └── visualize.py          QC + presentation figures
+│
+├── localization/             THE LOCALIZER
+│   ├── baseline.py           NCC · phase correlation · multi-scale pyramid
+│   ├── ler_fingerprint.py    Stage 2B — per-line edge-roughness fingerprint
+│   ├── spectral.py           Stage 2A/2C/2E — lattice, orientation, de-warp
+│   ├── structural.py         Stage 2D — structural prefilter (studied, closed)
+│   └── ler_localizer.py      two-stage localizer (candidates → LER → subpixel)
+│
+├── experiments/              REPRODUCIBLE STUDIES
+│   ├── run_baseline.py            per-tier baseline metrics
+│   ├── analyze_failures.py        alias-vs-gross failure taxonomy
+│   ├── ler_hypothesis.py          the Stage-2 discrimination experiment
+│   ├── ler_stress.py              margin vs distortion
+│   ├── run_stage2.py              full-search Stage-2 evaluation
+│   ├── recall_study.py            Stage 2A recall@K
+│   ├── candidate_budget.py        Stage 2D budget curve
+│   ├── descriptor_degradation.py  Stage 2E diagnosis
+│   └── rotation_study.py          Stage 2C orientation
+│
+├── tests/                    31 correctness + regression tests
+│   ├── test_datagen.py
+│   └── test_ler_fingerprint.py
+│
+├── docs/
+│   ├── images/               all figures + diagrams
+│   ├── VIDEO_SCRIPT.md       narrated-video script + shot list
+│   └── TECHNICAL_LOG.md      full stage-by-stage development log
+│
+└── outputs/                  generated datasets, metrics, figures, deck
+    └── Drift-Sense_Round1.pptx
 ```
-
-## Bugs found and fixed while hardening Stage 1
-
-1. **Line rendering was geometrically wrong.** The width profile was applied
-   *along* each line instead of *across* it, so every "line" was a 1-pixel
-   column holding a perpendicular intensity ramp. The generator produced faint
-   blobs, never actual DRAM/FinFET structure — which invalidated the original
-   baseline numbers entirely. Regression test: `test_bar_positions_and_width`.
-
-2. **Ground truth ignored scan drift.** Drift is a horizontal shear
-   (`x' = x + d·y`) displacing content by up to 110 px at the bottom of the
-   raster, but labels were computed pre-drift while pixels were rendered
-   post-drift. Regression tests: `test_ground_truth_correct_under_drift_and_rotation`,
-   `test_drift_is_a_shear_of_known_magnitude`.
-
-3. **Border artifacts.** Warping a 1000×1000 image with reflect padding
-   fabricated mirrored structure and a false symmetry a matcher could exploit.
-   Now an oversized scene is warped and the valid centre cropped.
-
-4. **Self-audit was aliasing.** The original audit used a wide correlation
-   window and no rotation compensation, so it reported correct labels as wrong.
-   Now the window is narrower than half the smallest period and the known warp
-   is undone first.
-
-5. `np.exp` overflow; O(H) `warpAffine` calls for drift (now a single `remap`);
-   O(n²) manifest rewriting; integer-quantized labels (now sub-pixel).
 
 ---
 
-# Stage 2 — LER-aware localization
+## Scientific method & honesty notes
 
-```
-1000x1000 search
-       |
-       v
-Stage A: NCC candidates + NMS -> top-K      (recall)
-       |
-       v
-Stage B: LER fingerprint re-ranking         (precision / disambiguation)
-       |
-       v
-Stage C: sub-pixel refinement
-       |
-       v
-     (x, y)
-```
+This project is built the way a semiconductor algorithm team would work: every
+claim is measured, controls are included, and **negative results are reported,
+not hidden.**
 
-## Does LER carry the signal? Yes — decisively
+- **A permanent impossibility control** (`ambiguous` tier) sits in every results table.
+- **Provable boundaries** are stated where they exist (e.g. why a cheap prefilter cannot work).
+- **Bugs found are documented** (line-rendering geometry; drift-shear ground truth; two sign-convention errors) with the regression tests that lock them out.
+- **Parameters are frozen** (`stage2_config.py`) and a **held-out test set is sealed** before final evaluation, to avoid tuning on the test set.
 
-Factorial experiment, truth vs ~24 periodic replicas. Only the wafer-physics
-factor varies; rotation, scale and drift are held at zero.
-
-| physics | LER top-1 | separation | d′ |
-|---|---|---|---|
-| none (control) | 0–10% *(chance 4%)* | 0.01–0.10 | 0.06–0.46 |
-| **LER only** | **95–100%** | **0.62–0.75** | **3.9–5.0** |
-| full physics | 90–95% | 0.52–0.76 | 3.4–4.6 |
-
-Turning LER on and nothing else moves discrimination from chance to ~100%.
-The extractor recovers injected LER at **corr 0.997**, with recovered RMS
-matching the injected σ, and still achieves corr 0.89 at 25 e⁻/px.
-
-## Two results I expected and got wrong
-
-**1. "Raw NCC's thin margin will collapse under distortion." It did not.**
-In the 25-way replica test NCC holds 100% top-1 across every stressor
-(rotation, drift, dose); its d′ even improves. The honest reading is that
-*NCC is itself weakly sensitive to LER* — it reads the same physical signal
-inefficiently, with a 0.08 margin versus the fingerprint's 0.70.
-
-That test simply cannot separate the methods: 25-way discrimination is easy
-enough that both saturate. The operational task searches ~10⁶ positions,
-where beating *every* competitor demands far more margin. All method
-comparison therefore moved to full search.
-
-**2. A detrending bug was masquerading as a rotation limit.**
-Discrimination collapsed above ~2.5°. The cause was not rotation itself but
-that lines were detrended by removing only the **mean**. Rotation induces a
-linear *ramp* along each line — ≈8.7 px over a 100 px patch at 5°, ~15× the
-0.55 px LER amplitude — which mean-removal leaves untouched. Switching to
-linear detrending recovered most of it:
-
-| |rotation| | NCC | LER (mean-detrend) | LER (linear detrend) |
-|---|---|---|---|
-| 0–1° | 38% | 75% | **88%** |
-| 1–2.5° | 12% | 50% | **50%** |
-| 2.5–5° | 20% | 13% | **27%** |
-
-## Full-search results (all 1000×1000, top-K = 150)
-
-| Tier | recall@K | NCC Acc@5 | **LER-2stage Acc@5** | gain | rescued | broken |
-|---|---|---|---|---|---|---|
-| clean | 100% | 100% | 100% | +0.0% | 0 | 0 |
-| nominal | 100% | 82.5% | **87.5%** | +5.0% | 6 | 4 |
-| **hard** | 77.5% | 17.5% | **37.5%** | **+20.0%** | 9 | 1 |
-| ambiguous | 40% | 0% | 0% | +0.0% | 0 | 0 |
-
-`hard` median error drops 360.6 → 226.6 px. `ambiguous` stays at 0% for both,
-exactly as it must — it is the control, and any method that beat it would be
-leaking information.
-
-## Where the remaining error actually lives
-
-The `recall@K` and `rescued`/`broken` diagnostics exist to stop a net gain
-from hiding a method that merely trades one error for another. On `hard`:
-
-- **22.5% of failures belong to Stage A** — the truth is not in the candidate
-  set at all, so re-ranking cannot recover it. This is the single largest
-  remaining loss, and it is what motivates frequency-domain candidate
-  generation (Stage 2A): estimating pitch and orientation lets candidates be
-  placed *on the lattice* instead of at NCC peaks.
-- **Of pairs where the truth IS a candidate, the re-ranker picks it 48%** (up
-  from 39% before linear detrending), concentrated in the >2.5° rotation
-  bucket. Explicit orientation estimation and de-rotation before extraction is
-  the direct fix.
-
-So frequency analysis is now empirically motivated as a *recall* mechanism,
-not assumed to be the innovation. It characterizes the ambiguity; LER breaks it.
-
-## Known limitations
-
-- The extractor assumes an axis-aligned lattice; beyond ~2.5° relative
-  rotation, discrimination degrades even with linear detrending.
-- `ncc_weight` in the combined score is currently inert: all candidates have
-  near-identical NCC (~0.9), so it adds a near-constant offset and never
-  changes the ranking. Making it useful requires z-scoring NCC across
-  candidates first.
-- The generator models *line-position* roughness (both edges of a bar move
-  together). Real lines have partially independent left/right edge roughness;
-  the centroid estimator recovers only the common mode.
-- Stage-2 hyperparameters (`top_k`, detrend order) were chosen on the same
-  tiers used for reporting. A held-out split is needed before quoting these
-  as generalization numbers.
+The full stage-by-stage log, including the dead ends, is in
+[`docs/TECHNICAL_LOG.md`](docs/TECHNICAL_LOG.md).
 
 ---
 
-# Stage 2A — spectral candidate generation (SOLVED: recall 77.5% → 100%)
-
-## Resolution: it was FFT bin quantization
-
-The FinFET failure was traced to a precise, quantitative cause. A global
-lattice model only stays in phase across the image if accumulated pitch error
-stays under half a period:
-
-```
-rel_pitch_err × span  <  pitch / 2
-```
-
-| structure | pitch | error budget | measured (before) | verdict |
-|---|---|---|---|---|
-| DRAM | 24 px | 1.20% | 0.9% | survives |
-| **FinFET fins** | 11 px | **0.55%** | **0.6%** | **fails** |
-
-And that 0.6% *was* the FFT bin quantization: for a 1000 px image the bin
-spacing is 1/1000 cyc/px, so at the fin frequency (k = 1/11) the quantization
-alone is 1.1%. **No sub-bin peak refinement was being done.**
-
-Adding parabolic sub-bin interpolation on log-power (`_refine_peak_subbin`):
-
-| | before | after |
-|---|---|---|
-| FinFET period error | 0.6% | **0.09%** |
-| DRAM period error | 0.9% | **0.26%** |
-
-Untrimmed lattice recall, by tier × family:
-
-| tier | DRAM before → after | FinFET before → after |
-|---|---|---|
-| clean | 100% → **100%** | 81% → **100%** |
-| nominal | 92% → **100%** | **41% → 100%** |
-| hard | 81% → **100%** | 79% → **93%** |
-
-## Second fix: do not rank lattice candidates by NCC
-
-Snapping lattice candidates to local NCC maxima and then *ranking them by
-NCC* collapsed all three generators to an identical 77.5% — the ranking
-re-imposes the photometric criterion and discards the structural constraint
-that generation just established.
-
-The lattice's value is that it reduces ~800,000 possible placements to ~1500
-structurally valid ones (a ~500× reduction) while retaining the truth.
-Ranking that set is the fingerprint's job, not NCC's.
-
-## End-to-end (hard tier, 20 pairs)
-
-| candidate source | recall | NCC Acc@5 | LER Acc@5 | gain | rescued | ms/pair |
-|---|---|---|---|---|---|---|
-| ncc top-150 | 75.0% | 10.0% | 35.0% | +25.0% | 5 | 477 |
-| **spectral lattice** | **100.0%** | 10.0% | **40.0%** | **+30.0%** | 6 | 4414 |
-
-Recall is solved. Accuracy moved far less (35% → 40%), and that is the
-informative part: **with 100% recall and 40% accuracy, the bottleneck has now
-definitively moved to discrimination.** Ranking ~1500 candidates is far harder
-than ranking 150, and hard-tier rotation degrades the fingerprint (measured
-27% in the 2.5–5° bucket). Cost is ~9× slower.
-
-**This makes Stage 2C (rotation compensation) the correct next task** — no
-longer on assumption, but because recall is saturated and discrimination is
-measurably the binding constraint.
-
-*Caveat: the end-to-end row is 20 pairs, so treat ±10% as noise. The recall
-and period-error numbers are the robust ones.*
-
----
-
-# Stage 2C — rotation compensation (built; refutes the rotation hypothesis)
-
-## Error budget first
-
-Linear detrending already removes the rotation *ramp*. The residual failure is
-different: a tilted line **drifts out of the half-pitch centroid window**.
-
-```
-ramp = H·tan(θ);   line escapes when ramp > half_pitch
-```
-
-| structure | half-pitch | escapes at | residual budget |
-|---|---|---|---|
-| DRAM | 12.0 px | 6.8° | 1.72° |
-| **FinFET** | 5.5 px | **3.1°** | **0.79°** |
-
-The predicted FinFET break at 3.1° matches the observed ~2.5° degradation
-onset, so the model is trusted. **Budget: 0.79°.**
-
-## A sign bug was masquerading as a resolution limit
-
-Orientation error measured 2.29° median against a 0.79° budget — apparently
-hopeless. A controlled synthetic rotation gave the answer:
-
-| applied | recovered | ratio |
-|---|---|---|
-| −4.00° | 3.99° | **−1.00** |
-| 2.00° | −2.00° | **−1.00** |
-
-`cv2.getRotationMatrix2D` uses a y-up convention while image rows run y-down,
-so the FFT angle came out negated. After the fix (plus spectral zero-padding
-and a two-vector consistency gate):
-
-| estimator | coverage | median | P95 | within budget |
-|---|---|---|---|---|
-| search-only *(assumes ref@0)* | 100% | **0.01°** | 0.02° | 100% |
-| ref-vs-search *(general)* | 75–100% | **0.24–0.34°** | ≤0.75° | 90–100% |
-
-Orientation estimation now **meets budget**.
-
-*Caveat: the search-only variant assumes the reference sits at nominal
-orientation. In this generator the reference is cropped from the unwarped
-scene, so that is exactly true — it is partly a generator artifact and is
-reported only to upper-bound what perfect reference knowledge would buy.*
-
-## De-rotation produced zero gain — because rotation was never the bottleneck
-
-| applied rotation | no compensation | de-rotated | gain |
-|---|---|---|---|
-| 0.5° | 92% | 92% | +0% |
-| 2.0° | 100% | 100% | +0% |
-| 4.0° | 100% | 100% | +0% |
-
-Discrimination is *already* 92–100% at 4°. There was no headroom to recover.
-My earlier attribution of the hard-tier 27% bucket to rotation was **wrong** —
-that bucketing was confounded, the same way the FinFET recall analysis was.
-
-## Isolating what actually breaks discrimination
-
-| condition | top-1 (24 replicas) |
-|---|---|
-| baseline (ideal) | 100% |
-| rotation ±4° | **100%** |
-| scale ±7% | 92% |
-| drift 0.11 px/line | 92% |
-| all three (hard-like) | **83%** |
-
-Even all three combined give 83%. But **full-search hard-tier accuracy is
-40%.** The distortions do not explain the gap.
-
-## The real bottleneck: candidate set size
-
-| competitors | top-1 |
-|---|---|
-| 24 periodic replicas | 83% |
-| ~1500 lattice candidates | 40% |
-
-Ranking ~1500 candidates is a fundamentally harder problem than ranking 24 —
-with ~60× more competitors, the chance that some false candidate exceeds the
-true score rises sharply (extreme-value statistics), even at d′ ≈ 4.
-
-**This reframes the priority.** The structural prefilter (1500 → 150–300) is
-not merely a runtime optimization — it is an **accuracy fix**, and it is now
-the highest-value next task. It must not use NCC ranking, which was already
-shown to destroy the structural advantage. Candidate signals: orientation
-consistency, local pitch consistency, edge-density signature, coarse
-structural hash.
-
-Rotation compensation is built, correct, and cheap (one global angle per
-pair), and should be retained for robustness beyond 4° — but it is not where
-the remaining error lives.
-
----
-
-# Stage 2D — candidate-set explosion (budget curve + a conclusive negative)
-
-## The budget curve confirms set size is first-order
-
-For each pair the full lattice set is LER-scored once; expected top-1 for a set
-of the truth + (K−1) *random* competitors is then computed exactly via the
-hypergeometric distribution — isolating competitor count from every other
-factor.
-
-| kept K | 25 | 50 | 100 | 150 | 300 | 500 | 1000 | 1500 |
-|---|---|---|---|---|---|---|---|---|
-| hard top-1 | **55%** | 54% | 50% | 48% | 42% | 38% | 31% | **29%** |
-
-Shrinking 1500 → 25 nearly doubles accuracy (29% → 55%). So the premise holds:
-if the truth could be kept while competitors are dropped, accuracy rises. The
-55% ceiling at K=25 also shows a *second* effect — distortion degrading the
-truth's own fingerprint — which no amount of pruning can fix.
-
-## But the prefilter cannot work here — and this is provable
-
-A prefilter must prune with a signal that is **not** LER (the fine
-discriminator) and **not** NCC (shown to destroy the structural advantage).
-Every candidate signal we tried failed, and there is a structural reason:
-
-**Lattice candidates are structurally identical by construction.** They are
-enumerated as `t = V(Δa + [n,m])` from a *single* shared basis `V`, so every
-candidate has the *same* pitch and the *same* orientation:
-
-```
-All 1500 candidates share ONE basis: periods=(19.97, 15.68), orient=-2.67°
-```
-
-So the pitch- and orientation-consistency filters are **structurally
-incapable** of pruning — there is nothing to discriminate. Only
-position-dependent signals (LER, the CD/contrast field, defects) differ
-between candidates, and **LER is the strongest of them.** There is no
-cheaper-than-LER proxy for *this* candidate set.
-
-### Measured negatives (all three hurt)
-
-| approach | tier | result |
-|---|---|---|
-| low-freq envelope prefilter → keep 150 | hard | 33% → **13%** |
-| low-freq envelope prefilter → keep 300 | nominal | 80% → **73%** |
-| global rotation+scale de-warp before LER | hard | 33% → **20%** |
-
-The envelope prefilter fails because the CD/contrast field over a 100 px patch
-is only weakly position-discriminative and is corrupted by acquisition
-differences — its recall is too low, so it discards the truth.
-
-The de-warp fails for a deeper, physical reason: **LER is a sub-pixel signal,
-so bilinear resampling (rotation/scale correction) blurs the very roughness
-being measured.** You cannot freely re-warp when the discriminator lives below
-the pixel grid.
-
-## What these negatives actually establish
-
-1. **LER is not just sufficient but necessary.** With coarse structure shared
-   across all candidates, the LER fingerprint is the *only* reliable positional
-   signal — there is no cheap prefilter to offload it onto.
-2. **The hard-tier bottleneck is descriptor quality under distortion**, not
-   competitor count alone (the 55% ceiling), and it is *not* fixable by
-   resampling.
-
-So the correct next directions are (a) a **resampling-free** distortion-robust
-LER comparison (e.g. compare displacement fields in a distortion-invariant
-representation rather than warping pixels), and (b) making full-set LER scoring
-cheap enough that pruning is unnecessary (vectorized extraction / caching).
-The "coarse structural prefilter" branch is closed, with a proof of why.
-
----
-
-# Stage 2A — original negative result (superseded, kept for the record)
-
-## Method
-
-The reference cannot sit anywhere: its content belongs to a periodic lattice,
-so it can only align at lattice-congruent positions. A 2-D FFT gives the two
-fundamental reciprocal vectors `k1, k2` (with `k_i · v_j = δ_ij`), which is
-**rotation-covariant** — a rotated lattice produces rotated Fourier peaks, so
-no separate orientation estimator is needed. Candidate translations solve
-
-```
-k_i · t  ≡  a_search,i − a_reference,i   (mod 1)
-t = V (Δa + [n, m]),   V = K⁻¹
-```
-
-Lattice estimation itself is accurate — recovered periods track the manifest
-closely (e.g. true 18.7/23.6 → estimated 18.5/23.8 px).
-
-## Result: recall@K did not improve
-
-| Tier | generator | R@10 | R@25 | R@50 | R@150 |
-|---|---|---|---|---|---|
-| clean | ncc_peaks | 100% | 100% | 100% | 100% |
-| clean | lattice | 97.5% | 97.5% | 97.5% | 97.5% |
-| nominal | ncc_peaks | 85% | 90% | 90% | **100%** |
-| nominal | lattice | 70% | 75% | 80% | 90% |
-| **hard** | ncc_peaks | 27.5% | 37.5% | 52.5% | **77.5%** |
-| **hard** | lattice | 27.5% | **40%** | **55%** | 75% |
-
-The target was 77.5% → 95%+ on `hard`. **That did not happen.** Lattice
-generation edges out NCC at K=25–50 but is equal-to-worse at K=150, and worse
-on clean/nominal. Stage 2A as built does not solve the recall bottleneck.
-
-## Two sub-findings worth keeping
-
-**Lattice candidates land in the right cell but at the wrong offset.**
-Untrimmed lattice recall on `hard` was 76%, with the nearest candidate a
-median of 2.6 px from truth (p75 = 4.9, max = 7.8) — straddling the 5 px
-tolerance. Cause: a global lattice assumes constant pitch, but pitch error
-*accumulates* — across ~42 periods in 1000 px, a 0.5% error becomes ~5 px of
-drift at the far edge. Adding `snap_to_local_ncc` (search radius ≪ pitch, so
-it cannot hop to an alias) lifted hard R@50 from 27.5% → 55%.
-
-**Ranking the union by NCC is worse than either generator alone.** It simply
-re-imposes the photometric criterion and discards the structural one.
-Interleaving the two ranked lists fixes this.
-
-## Root cause: it's FinFET, not the stressors
-
-Pooled correlations were badly confounded. Bucketing lattice recall by drift,
-noise and scale gave *nonsensical* trends — more drift (53%→88%) and more
-noise (60%→94%) both appeared to **improve** recall. Rotation showed no
-degradation either, refuting my initial hypothesis that ref/search geometric
-mismatch was to blame.
-
-Splitting by structure family explains all of it:
-
-| tier | DRAM | FinFET |
-|---|---|---|
-| clean | **100%** | 81% |
-| nominal | **92%** | **41%** |
-| hard | **81%** | 79% |
-
-Spectral lattice estimation works well on DRAM and fails on FinFET. FinFET's
-fin pitch (~11 px) and gate pitch (~45 px) differ by ~4×, so fin-frequency
-power dominates the spectrum and basis estimation mis-selects the weak gate
-peak. The earlier "lattice doesn't help" conclusion was too broad — it helps
-substantially on DRAM and is dragged down by FinFET.
-
-**Concrete next step:** make basis estimation robust to strongly anisotropic
-spectra (per-direction normalization, or explicit search for the weak second
-fundamental), then re-run this table. Do not re-tune Stage 2B against it.
-
-## Status
+## Roadmap
 
 | Stage | State |
-|---|---|
-| 1 — Data engine + baseline | done |
-| 2B — LER discrimination | **frozen** (`stage2_config.py`) |
-| 2A — Spectral candidates | **done** — recall 77.5% → 100% on hard |
-| 2C — Rotation compensation | **done** — meets 0.79° budget; not the bottleneck |
-| 2D — Structural prefilter | **closed** — provably can't prune (candidates share one basis); LER shown necessary |
-| 2E — Resampling-free distortion-robust LER | **next** — attacks the 55% ceiling |
-| 3 — Unified system | not started |
-| 4 — Held-out eval | test set generated (seed 9999), **untouched** |
+|-------|-------|
+| Data engine + baseline | ✅ done |
+| 2B LER discrimination | ✅ frozen · d′ ≈ 4–5 |
+| 2A Spectral recall | ✅ done · 77.5% → 100% |
+| 2C Rotation estimation | ✅ meets 0.79° budget |
+| 2D Structural prefilter | ✅ closed with a proof |
+| 2E Distortion-robust LER | 🟡 safe de-warp 25→33%; robust grid orientation is next |
+| 3 Unified full-search system | ⬜ next |
+| 4 Held-out benchmark + ablations | ⬜ test set sealed, ready |
 
-`outputs/dataset_test/` (40 pairs × 4 tiers, GT audit 100%) has not been
-evaluated against. It stays sealed until the pipeline is final.
+**Immediate next step:** a RANSAC / lattice-fit orientation estimator that is both
+median-accurate *and* outlier-free, to capture the oracle 47% ceiling on the hard tier.
 
-## Stage 2 usage
+---
 
-```bash
-python -m tests.test_ler_fingerprint       # 12 tests
-python -m experiments.ler_hypothesis --n_pairs 20
-python -m experiments.ler_stress --n_pairs 15
-python -m experiments.run_stage2 --all_tiers --top_k 150
-python -m experiments.recall_study --all_tiers          # Stage 2A metric
-```
-
-## Information-theoretic control
-
-The `ambiguous` tier removes all persistent LER / CD / defect information,
-making the scene exactly translationally periodic. Localization is then
-*fundamentally* impossible — every alias is an equally valid explanation of
-the observation.
-
-DriftSense scores **0% on that tier and does not attempt to exceed it.**
-
-That is the point. It demonstrates the reported gains come from exploiting
-real wafer physics rather than from a generator artifact or label leakage. A
-method that scored above chance here would be reading information that does
-not exist in a real inspection image.
-=======
-# DriftSense
-Drift-Sense — Physics-aware localization of semiconductor inspection patterns using LER fingerprints and robust image matching.
->>>>>>> 507aee192cc95181ebe4f96a81625d3507cdb6de
+<p align="center"><i>Frequency tells you where a copy could be. LER tells you which copy is real.</i></p>
