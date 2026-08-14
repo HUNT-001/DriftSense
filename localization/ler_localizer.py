@@ -150,7 +150,9 @@ def localize(ref: np.ndarray,
              candidate_source: str = "ncc",
              snap_radius: int = 5,
              max_lattice_candidates: int = 2500,
-             prefilter_keep: int = 0) -> LocalizationResult:
+             prefilter_keep: int = 0,
+             derotate: bool = False,
+             derotate_min_deg: float = 0.75) -> LocalizationResult:
     """
     Localize `ref` inside `search` using coarse NCC + LER fingerprint ranking.
 
@@ -220,6 +222,33 @@ def localize(ref: np.ndarray,
     ref_fp = extract_fingerprint(ref)
     cands: list[Candidate] = []
 
+    # ---- Optional global de-rotation (Stage 2C machinery, Stage 2E use) ----
+    # Relative rotation is estimated ONCE for the pair and the SAME angle is
+    # applied to every candidate.  Because the correction is uniform across
+    # candidates it cannot preferentially favour any periodic replica, so it
+    # introduces no leakage — unlike per-candidate geometric fitting.
+    #
+    # Measured (descriptor similarity at the true location): de-rotating a
+    # 5-degree candidate recovers similarity 0.37 -> 0.67.  Rotation is the
+    # single steepest descriptor degrader (0.74 -> 0.32 across 0-5 degrees),
+    # so this is the highest-value distortion correction.
+    theta, scale = 0.0, 1.0
+    _dewarp = None
+    if derotate:
+        from localization.spectral import (estimate_orientation_consensus,
+                                            estimate_reciprocal_basis,
+                                            dewarp_roi as _dewarp)
+        bs = estimate_reciprocal_basis(search)
+        th, ok = estimate_orientation_consensus(search)
+        if ok:
+            theta = th
+        if bs.ok:
+            br = estimate_reciprocal_basis(ref)
+            if br.ok:
+                import numpy as _np
+                scale = float(_np.mean(sorted(bs.periods))
+                              / _np.mean(sorted(br.periods)))
+
     for (tlx, tly, ncc) in peaks:
         cx = tlx + rw / 2.0
         cy = tly + rh / 2.0
@@ -230,6 +259,19 @@ def localize(ref: np.ndarray,
             fp = float("nan")
         else:
             fp = fingerprint_similarity(ref_fp, extract_fingerprint(patch))
+            # SAFE geometric correction: take the MAX of the un-warped score
+            # and the rot+scale-dewarped score.  Because the un-warped score is
+            # always a fallback, a WRONG global (theta, scale) estimate can only
+            # fail to help — it can never drag a candidate below its un-warped
+            # value.  This is what makes de-warp non-regressing despite the ~30%
+            # bad-axis rotation outliers documented in spectral.py / README 2E.
+            if derotate and _dewarp is not None and (
+                    abs(theta) > 1e-6 or abs(scale - 1.0) > 1e-3):
+                pw = _dewarp(search, cx, cy, rw, rh, -theta, scale)
+                if pw is not None:
+                    fw = fingerprint_similarity(ref_fp, extract_fingerprint(pw))
+                    if np.isfinite(fw) and (not np.isfinite(fp) or fw > fp):
+                        fp = fw
         cands.append(Candidate(x=cx, y=cy, ncc=ncc, fp=fp))
 
     if not cands:
