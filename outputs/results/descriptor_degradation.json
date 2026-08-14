@@ -1,0 +1,70 @@
+{
+  "rotation (deg)": [
+    {
+      "level": "0.0",
+      "similarity": 0.7386191333687964
+    },
+    {
+      "level": "1.0",
+      "similarity": 0.6585084271676039
+    },
+    {
+      "level": "2.5",
+      "similarity": 0.5111704496763163
+    },
+    {
+      "level": "5.0",
+      "similarity": 0.32110141736551245
+    }
+  ],
+  "scale (+/-frac)": [
+    {
+      "level": "0.00",
+      "similarity": 0.7386191333687964
+    },
+    {
+      "level": "0.01",
+      "similarity": 0.6513481859351437
+    },
+    {
+      "level": "0.03",
+      "similarity": 0.6059083342552185
+    },
+    {
+      "level": "0.07",
+      "similarity": 0.4732989999649177
+    }
+  ],
+  "drift (px/line)": [
+    {
+      "level": "0.00",
+      "similarity": 0.7386191333687964
+    },
+    {
+      "level": "0.02",
+      "similarity": 0.695293050415231
+    },
+    {
+      "level": "0.05",
+      "similarity": 0.7669330440583776
+    },
+    {
+      "level": "0.11",
+      "similarity": 0.8748953004678091
+    }
+  ],
+  "noise (dose)": [
+    {
+      "level": "low",
+      "similarity": 0.7808026501110622
+    },
+    {
+      "level": "medium",
+      "similarity": 0.6965981486117004
+    },
+    {
+      "level": "high",
+      "similarity": 0.6015077821120688
+    }
+  ]
+}
