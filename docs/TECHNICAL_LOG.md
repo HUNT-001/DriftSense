@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # DriftSense — PS2, Semicon India Hackathon
 
 Reference-pattern localization in periodic semiconductor SEM imagery.
@@ -716,7 +715,6 @@ That is the point. It demonstrates the reported gains come from exploiting
 real wafer physics rather than from a generator artifact or label leakage. A
 method that scored above chance here would be reading information that does
 not exist in a real inspection image.
-=======
 # DriftSense
 Drift-Sense — Physics-aware localization of semiconductor inspection patterns using LER fingerprints and robust image matching.
->>>>>>> 507aee192cc95181ebe4f96a81625d3507cdb6de
+
