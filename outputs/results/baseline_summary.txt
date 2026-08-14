@@ -1,0 +1,16 @@
+DriftSense Baseline Results
+============================================================
+
+Dataset: /sessions/awesome-affectionate-maxwell/mnt/DriftSense/outputs/dataset
+Pairs evaluated: 40
+
+    Method   Mean_err    Med_err   Acc@5   Acc@20   Acc@50
+------------------------------------------------------------
+       NCC     441.79     455.50    0.0%     5.0%     7.5%
+   PhaseCC     377.40     373.98    0.0%     0.0%     2.5%
+  MultiNCC     441.85     481.25    0.0%     5.0%     7.5%
+
+Note: On periodic structures (DRAM/FinFET) classical NCC and
+phase correlation exhibit period-aliased failures (errors =
+multiples of structural period). This motivates the frequency-
+aware + ML-assisted approach in Stage 2.

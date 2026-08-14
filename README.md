@@ -338,6 +338,172 @@ and period-error numbers are the robust ones.*
 
 ---
 
+# Stage 2C — rotation compensation (built; refutes the rotation hypothesis)
+
+## Error budget first
+
+Linear detrending already removes the rotation *ramp*. The residual failure is
+different: a tilted line **drifts out of the half-pitch centroid window**.
+
+```
+ramp = H·tan(θ);   line escapes when ramp > half_pitch
+```
+
+| structure | half-pitch | escapes at | residual budget |
+|---|---|---|---|
+| DRAM | 12.0 px | 6.8° | 1.72° |
+| **FinFET** | 5.5 px | **3.1°** | **0.79°** |
+
+The predicted FinFET break at 3.1° matches the observed ~2.5° degradation
+onset, so the model is trusted. **Budget: 0.79°.**
+
+## A sign bug was masquerading as a resolution limit
+
+Orientation error measured 2.29° median against a 0.79° budget — apparently
+hopeless. A controlled synthetic rotation gave the answer:
+
+| applied | recovered | ratio |
+|---|---|---|
+| −4.00° | 3.99° | **−1.00** |
+| 2.00° | −2.00° | **−1.00** |
+
+`cv2.getRotationMatrix2D` uses a y-up convention while image rows run y-down,
+so the FFT angle came out negated. After the fix (plus spectral zero-padding
+and a two-vector consistency gate):
+
+| estimator | coverage | median | P95 | within budget |
+|---|---|---|---|---|
+| search-only *(assumes ref@0)* | 100% | **0.01°** | 0.02° | 100% |
+| ref-vs-search *(general)* | 75–100% | **0.24–0.34°** | ≤0.75° | 90–100% |
+
+Orientation estimation now **meets budget**.
+
+*Caveat: the search-only variant assumes the reference sits at nominal
+orientation. In this generator the reference is cropped from the unwarped
+scene, so that is exactly true — it is partly a generator artifact and is
+reported only to upper-bound what perfect reference knowledge would buy.*
+
+## De-rotation produced zero gain — because rotation was never the bottleneck
+
+| applied rotation | no compensation | de-rotated | gain |
+|---|---|---|---|
+| 0.5° | 92% | 92% | +0% |
+| 2.0° | 100% | 100% | +0% |
+| 4.0° | 100% | 100% | +0% |
+
+Discrimination is *already* 92–100% at 4°. There was no headroom to recover.
+My earlier attribution of the hard-tier 27% bucket to rotation was **wrong** —
+that bucketing was confounded, the same way the FinFET recall analysis was.
+
+## Isolating what actually breaks discrimination
+
+| condition | top-1 (24 replicas) |
+|---|---|
+| baseline (ideal) | 100% |
+| rotation ±4° | **100%** |
+| scale ±7% | 92% |
+| drift 0.11 px/line | 92% |
+| all three (hard-like) | **83%** |
+
+Even all three combined give 83%. But **full-search hard-tier accuracy is
+40%.** The distortions do not explain the gap.
+
+## The real bottleneck: candidate set size
+
+| competitors | top-1 |
+|---|---|
+| 24 periodic replicas | 83% |
+| ~1500 lattice candidates | 40% |
+
+Ranking ~1500 candidates is a fundamentally harder problem than ranking 24 —
+with ~60× more competitors, the chance that some false candidate exceeds the
+true score rises sharply (extreme-value statistics), even at d′ ≈ 4.
+
+**This reframes the priority.** The structural prefilter (1500 → 150–300) is
+not merely a runtime optimization — it is an **accuracy fix**, and it is now
+the highest-value next task. It must not use NCC ranking, which was already
+shown to destroy the structural advantage. Candidate signals: orientation
+consistency, local pitch consistency, edge-density signature, coarse
+structural hash.
+
+Rotation compensation is built, correct, and cheap (one global angle per
+pair), and should be retained for robustness beyond 4° — but it is not where
+the remaining error lives.
+
+---
+
+# Stage 2D — candidate-set explosion (budget curve + a conclusive negative)
+
+## The budget curve confirms set size is first-order
+
+For each pair the full lattice set is LER-scored once; expected top-1 for a set
+of the truth + (K−1) *random* competitors is then computed exactly via the
+hypergeometric distribution — isolating competitor count from every other
+factor.
+
+| kept K | 25 | 50 | 100 | 150 | 300 | 500 | 1000 | 1500 |
+|---|---|---|---|---|---|---|---|---|
+| hard top-1 | **55%** | 54% | 50% | 48% | 42% | 38% | 31% | **29%** |
+
+Shrinking 1500 → 25 nearly doubles accuracy (29% → 55%). So the premise holds:
+if the truth could be kept while competitors are dropped, accuracy rises. The
+55% ceiling at K=25 also shows a *second* effect — distortion degrading the
+truth's own fingerprint — which no amount of pruning can fix.
+
+## But the prefilter cannot work here — and this is provable
+
+A prefilter must prune with a signal that is **not** LER (the fine
+discriminator) and **not** NCC (shown to destroy the structural advantage).
+Every candidate signal we tried failed, and there is a structural reason:
+
+**Lattice candidates are structurally identical by construction.** They are
+enumerated as `t = V(Δa + [n,m])` from a *single* shared basis `V`, so every
+candidate has the *same* pitch and the *same* orientation:
+
+```
+All 1500 candidates share ONE basis: periods=(19.97, 15.68), orient=-2.67°
+```
+
+So the pitch- and orientation-consistency filters are **structurally
+incapable** of pruning — there is nothing to discriminate. Only
+position-dependent signals (LER, the CD/contrast field, defects) differ
+between candidates, and **LER is the strongest of them.** There is no
+cheaper-than-LER proxy for *this* candidate set.
+
+### Measured negatives (all three hurt)
+
+| approach | tier | result |
+|---|---|---|
+| low-freq envelope prefilter → keep 150 | hard | 33% → **13%** |
+| low-freq envelope prefilter → keep 300 | nominal | 80% → **73%** |
+| global rotation+scale de-warp before LER | hard | 33% → **20%** |
+
+The envelope prefilter fails because the CD/contrast field over a 100 px patch
+is only weakly position-discriminative and is corrupted by acquisition
+differences — its recall is too low, so it discards the truth.
+
+The de-warp fails for a deeper, physical reason: **LER is a sub-pixel signal,
+so bilinear resampling (rotation/scale correction) blurs the very roughness
+being measured.** You cannot freely re-warp when the discriminator lives below
+the pixel grid.
+
+## What these negatives actually establish
+
+1. **LER is not just sufficient but necessary.** With coarse structure shared
+   across all candidates, the LER fingerprint is the *only* reliable positional
+   signal — there is no cheap prefilter to offload it onto.
+2. **The hard-tier bottleneck is descriptor quality under distortion**, not
+   competitor count alone (the 55% ceiling), and it is *not* fixable by
+   resampling.
+
+So the correct next directions are (a) a **resampling-free** distortion-robust
+LER comparison (e.g. compare displacement fields in a distortion-invariant
+representation rather than warping pixels), and (b) making full-set LER scoring
+cheap enough that pruning is unnecessary (vectorized extraction / caching).
+The "coarse structural prefilter" branch is closed, with a proof of why.
+
+---
+
 # Stage 2A — original negative result (superseded, kept for the record)
 
 ## Method
@@ -418,7 +584,9 @@ fundamental), then re-run this table. Do not re-tune Stage 2B against it.
 | 1 — Data engine + baseline | done |
 | 2B — LER discrimination | **frozen** (`stage2_config.py`) |
 | 2A — Spectral candidates | **done** — recall 77.5% → 100% on hard |
-| 2C — Rotation compensation | **next** — now the measured bottleneck |
+| 2C — Rotation compensation | **done** — meets 0.79° budget; not the bottleneck |
+| 2D — Structural prefilter | **closed** — provably can't prune (candidates share one basis); LER shown necessary |
+| 2E — Resampling-free distortion-robust LER | **next** — attacks the 55% ceiling |
 | 3 — Unified system | not started |
 | 4 — Held-out eval | test set generated (seed 9999), **untouched** |
 

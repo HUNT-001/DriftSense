@@ -1,0 +1,16 @@
+DriftSense Dataset — 40 pairs
+Seed: 42
+Total generation time: 32.3s
+
+Structure distribution:
+  DRAM:   22
+  FinFET: 18
+
+Noise level distribution:
+     low: 13
+  medium: 13
+    high: 14
+
+Ground-truth statistics:
+  gt_x  mean=489.2  std=266.8
+  gt_y  mean=526.5  std=256.0

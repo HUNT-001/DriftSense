@@ -1,0 +1,21 @@
+DriftSense Dataset — tier 'hard'
+==============================================================
+pairs: 40   seed: 11999   gen time: 61.1s (1.53s/pair)
+
+Structure families:  DRAM=20  FinFET=20
+  noise 'medium': 20
+  noise 'high': 20
+
+Geometry ranges applied:
+  rotation: [-4.93, 4.93] deg
+  scale:    [0.9322, 1.0630]
+
+Structural periods (px, post-scale):
+  period_x: [9.9, 59.4]
+  period_y: [9.5, 48.7]
+
+Defects per scene: mean=43.0
+
+GROUND-TRUTH SELF-AUDIT
+  Local NCC around declared GT must peak at GT.
+  checked=40  pass@3px=100.0%  median_offset=0.41px  max=0.65px

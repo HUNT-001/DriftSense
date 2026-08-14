@@ -1,0 +1,14 @@
+DriftSense baseline — tier 'hard'
+==============================================================================
+pairs: 40
+
+    Method      Mean    Median   Acc@1   Acc@5  Acc@20  Acc@50
+------------------------------------------------------------------------------
+       NCC     372.3     360.6   17.5%   17.5%   17.5%   17.5%
+   PhaseCC     351.5     330.5    0.0%    0.0%    0.0%    0.0%
+  MultiNCC     338.7     227.8    7.5%    7.5%    7.5%   10.0%
+
+Median error by structure family:
+         NCC  DRAM=294.687  FinFET=365.952
+     PhaseCC  DRAM=330.492  FinFET=334.06
+    MultiNCC  DRAM=220.05  FinFET=249.963
