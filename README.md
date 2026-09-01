@@ -222,6 +222,8 @@ orientation identified as the one open blocker.
 ## Quickstart
 
 ```bash
+git clone https://github.com/HUNT-001/DriftSense.git
+cd DriftSense
 pip install -r requirements.txt
 
 # 1) run the test suites (31 tests)
