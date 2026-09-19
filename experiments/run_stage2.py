@@ -69,7 +69,9 @@ def run_tier(tier: str,
              ncc_weight: float = 0.0,
              nms_distance: int = 5,
              write: bool = True,
-             candidate_source: str = "ncc") -> dict:
+             candidate_source: str = "ncc",
+             derotate: bool = False,
+             orientation: str = "consensus") -> dict:
 
     ds_dir = Path(dataset_root) / tier
     res_dir = Path(results_root) / tier
@@ -113,7 +115,8 @@ def run_tier(tier: str,
 
         res = localize(ref, search, top_k=top_k,
                         nms_distance=nms_distance, ncc_weight=ncc_weight,
-                        candidate_source=candidate_source)
+                        candidate_source=candidate_source,
+                        derotate=derotate, orientation=orientation)
         e_ler = res.error(gx, gy)
 
         found, rank = candidate_recall(res.candidates, gx, gy, tol=5.0)
@@ -202,12 +205,24 @@ if __name__ == "__main__":
     ap.add_argument("--dataset", default="outputs/dataset")
     ap.add_argument("--out", default="outputs/results")
     ap.add_argument("--max_pairs", type=int, default=None)
+    ap.add_argument("--method", default="ncc",
+                    choices=["ncc", "lattice", "driftsense"],
+                    help="ncc: Stage-1 baseline candidates; lattice: spectral "
+                         "candidate generation; driftsense: lattice + global "
+                         "de-rotation (the full pipeline).")
     args = ap.parse_args()
+
+    method_kw = {
+        "ncc":        dict(candidate_source="ncc",     derotate=False),
+        "lattice":    dict(candidate_source="lattice", derotate=False),
+        "driftsense": dict(candidate_source="lattice", derotate=True,
+                           orientation="consensus"),
+    }[args.method]
 
     tiers = list(TIERS) if args.all_tiers else [args.tier]
     summaries = [s for s in
                  (run_tier(t, args.dataset, args.out, args.top_k,
-                            args.max_pairs) for t in tiers) if s]
+                            args.max_pairs, **method_kw) for t in tiers) if s]
 
     if summaries:
         print("\n" + "=" * 96)

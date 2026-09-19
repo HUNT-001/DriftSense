@@ -152,7 +152,8 @@ def localize(ref: np.ndarray,
              max_lattice_candidates: int = 2500,
              prefilter_keep: int = 0,
              derotate: bool = False,
-             derotate_min_deg: float = 0.75) -> LocalizationResult:
+             derotate_min_deg: float = 0.75,
+             orientation: str = "consensus") -> LocalizationResult:
     """
     Localize `ref` inside `search` using coarse NCC + LER fingerprint ranking.
 
@@ -234,6 +235,7 @@ def localize(ref: np.ndarray,
     # so this is the highest-value distortion correction.
     theta, scale = 0.0, 1.0
     _dewarp = None
+    warps: list[tuple[float, float]] = []   # shared (theta, scale) hypotheses
     if derotate:
         from localization.spectral import (estimate_orientation_consensus,
                                             estimate_reciprocal_basis,
@@ -248,6 +250,37 @@ def localize(ref: np.ndarray,
                 import numpy as _np
                 scale = float(_np.mean(sorted(bs.periods))
                               / _np.mean(sorted(br.periods)))
+
+        # ---- assemble the shared correction hypotheses ----
+        # Point orientation estimators all have a ~35% bad-axis tail on the hard
+        # tier that no single one removes (measured: consensus/ransac/spectral
+        # each leave P90 ~5 deg).  Instead of trusting one angle, 'multi' offers a
+        # SMALL SET of plausible global corrections; because each is applied
+        # uniformly to every candidate and the fingerprint takes the per-candidate
+        # MAX (with the un-warped score always available), a wrong hypothesis can
+        # only fail to help, while the correct one rescues the bad-axis pairs.
+        angles: list[float] = []
+        if orientation == "multi":
+            from localization.lattice_fit import (
+                estimate_orientation_ransac, estimate_relative_rotation_spectral)
+            cand = [(th, ok)]
+            cand.append(estimate_orientation_ransac(search))
+            cand.append(estimate_relative_rotation_spectral(ref, search))
+            for a, a_ok in cand:
+                if a_ok and np.isfinite(a):
+                    angles.append(float(a))
+            # De-duplicate to 0.25 deg and cap the set size to bound compute.
+            uniq: list[float] = []
+            for a in angles:
+                if all(abs(a - u) > 0.25 for u in uniq):
+                    uniq.append(a)
+            angles = uniq[:4]
+        elif ok:
+            angles = [theta]
+
+        scales = {round(scale, 4), 1.0}
+        warps = [(a, s) for a in angles for s in scales
+                 if abs(a) > 1e-6 or abs(s - 1.0) > 1e-3]
 
     for (tlx, tly, ncc) in peaks:
         cx = tlx + rw / 2.0
@@ -265,10 +298,11 @@ def localize(ref: np.ndarray,
             # fail to help — it can never drag a candidate below its un-warped
             # value.  This is what makes de-warp non-regressing despite the ~30%
             # bad-axis rotation outliers documented in spectral.py / README 2E.
-            if derotate and _dewarp is not None and (
-                    abs(theta) > 1e-6 or abs(scale - 1.0) > 1e-3):
-                pw = _dewarp(search, cx, cy, rw, rh, -theta, scale)
-                if pw is not None:
+            if derotate and _dewarp is not None:
+                for (th_w, sc_w) in warps:
+                    pw = _dewarp(search, cx, cy, rw, rh, -th_w, sc_w)
+                    if pw is None:
+                        continue
                     fw = fingerprint_similarity(ref_fp, extract_fingerprint(pw))
                     if np.isfinite(fw) and (not np.isfinite(fp) or fw > fp):
                         fp = fw

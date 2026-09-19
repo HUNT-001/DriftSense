@@ -1,0 +1,4 @@
+# DriftSense web demo (in addition to the core requirements.txt)
+fastapi>=0.110
+uvicorn>=0.29
+python-multipart>=0.0.9

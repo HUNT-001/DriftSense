@@ -42,6 +42,29 @@ each with the right physics — no neural network:
 
 ---
 
+## End-to-end full-search benchmark
+
+Component metrics (recall, d′) are necessary but not sufficient — the operational
+number is **end-to-end Acc@5** on the full 1000×1000 search. The unified pipeline
+(spectral candidates + global de-rotation + LER re-ranking) now runs in the
+headline evaluation:
+
+| Tier | Distortion | Classical NCC | **DriftSense** | recall@60 |
+|---|---|---|---|---|
+| clean | none | 100% | 97.5% | 97.5% |
+| nominal | ±1.5° | 82.5% | **90.0%** | 97.5% |
+| hard | ±5°, ±7% scale, low-dose | 17.5% | **57.5%** | 97.5% |
+
+**3.3× over classical matching on the hard tier.** recall@60 is 97.5% on every
+tier, so the remaining hard-tier gap is *discrimination*, not candidate
+generation — see [`docs/BENCHMARK.md`](docs/BENCHMARK.md). Try it live:
+[`demo/README.md`](demo/README.md) (`python -m demo.cli locate …` or the FastAPI
+web app).
+
+![benchmark](outputs/figures/benchmark_chart.png)
+
+---
+
 ## Table of contents
 
 - [Why this is hard](#why-this-is-hard)
