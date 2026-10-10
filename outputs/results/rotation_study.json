@@ -1,0 +1,78 @@
+{
+  "orientation": [
+    {
+      "rotation": 0.5,
+      "estimator": "search_only(assumes ref@0)",
+      "n": 12,
+      "coverage": 1.0,
+      "median_err": 0.014174065741162423,
+      "p95_err": 0.02456342230599553,
+      "within_budget": 1.0
+    },
+    {
+      "rotation": 0.5,
+      "estimator": "ref_vs_search(general)",
+      "n": 12,
+      "coverage": 1.0,
+      "median_err": 0.24673462104254895,
+      "p95_err": 0.4840578008671488,
+      "within_budget": 1.0
+    },
+    {
+      "rotation": 2.0,
+      "estimator": "search_only(assumes ref@0)",
+      "n": 12,
+      "coverage": 1.0,
+      "median_err": 0.01390170284890857,
+      "p95_err": 0.02608790845526591,
+      "within_budget": 1.0
+    },
+    {
+      "rotation": 2.0,
+      "estimator": "ref_vs_search(general)",
+      "n": 12,
+      "coverage": 0.8333333333333334,
+      "median_err": 0.34116934678769795,
+      "p95_err": 0.7481758448354254,
+      "within_budget": 0.9
+    },
+    {
+      "rotation": 4.0,
+      "estimator": "search_only(assumes ref@0)",
+      "n": 12,
+      "coverage": 1.0,
+      "median_err": 0.01203569305846841,
+      "p95_err": 0.02340822830150699,
+      "within_budget": 1.0
+    },
+    {
+      "rotation": 4.0,
+      "estimator": "ref_vs_search(general)",
+      "n": 12,
+      "coverage": 0.75,
+      "median_err": 0.239704041552514,
+      "p95_err": 0.45476315511792076,
+      "within_budget": 1.0
+    }
+  ],
+  "discrimination": [
+    {
+      "rotation": 0.5,
+      "n": 12,
+      "top1_plain": 0.9166666666666666,
+      "top1_derot": 0.9166666666666666
+    },
+    {
+      "rotation": 2.0,
+      "n": 12,
+      "top1_plain": 1.0,
+      "top1_derot": 1.0
+    },
+    {
+      "rotation": 4.0,
+      "n": 12,
+      "top1_plain": 1.0,
+      "top1_derot": 1.0
+    }
+  ]
+}
