@@ -1,0 +1,180 @@
+{
+  "$defs": {
+    "EnvInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "arch": {
+          "title": "Arch",
+          "type": "string"
+        },
+        "cool": {
+          "default": false,
+          "title": "Cool",
+          "type": "boolean"
+        },
+        "instance_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Instance Type"
+        },
+        "numpy": {
+          "title": "Numpy",
+          "type": "string"
+        },
+        "opencv": {
+          "title": "Opencv",
+          "type": "string"
+        },
+        "platform": {
+          "title": "Platform",
+          "type": "string"
+        },
+        "python": {
+          "title": "Python",
+          "type": "string"
+        }
+      },
+      "required": [
+        "python",
+        "opencv",
+        "numpy",
+        "platform",
+        "arch"
+      ],
+      "title": "EnvInfo",
+      "type": "object"
+    },
+    "Metric": {
+      "additionalProperties": false,
+      "properties": {
+        "ci_high": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ci High"
+        },
+        "ci_low": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ci Low"
+        },
+        "n": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "N"
+        },
+        "unit": {
+          "title": "Unit",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "number"
+        }
+      },
+      "required": [
+        "value",
+        "unit"
+      ],
+      "title": "Metric",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "dataset": {
+      "enum": [
+        "dev",
+        "sealed",
+        "synthetic",
+        "bench"
+      ],
+      "title": "Dataset",
+      "type": "string"
+    },
+    "env": {
+      "$ref": "#/$defs/EnvInfo"
+    },
+    "git_sha": {
+      "title": "Git Sha",
+      "type": "string"
+    },
+    "metrics": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Metric"
+      },
+      "title": "Metrics",
+      "type": "object"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "produced_by": {
+      "description": "Script path that generated this file",
+      "title": "Produced By",
+      "type": "string"
+    },
+    "protocol_sha256": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Protocol Sha256"
+    },
+    "schema_id": {
+      "const": "driftsense.results/1",
+      "default": "driftsense.results/1",
+      "title": "Schema Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "produced_by",
+    "git_sha",
+    "created_at",
+    "dataset",
+    "env",
+    "metrics"
+  ],
+  "title": "ResultsFile",
+  "type": "object"
+}

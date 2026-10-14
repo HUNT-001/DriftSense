@@ -1,0 +1,41 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "approver": {
+      "title": "Approver",
+      "type": "string"
+    },
+    "chosen_rank": {
+      "anyOf": [
+        {
+          "maximum": 3,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "None = reject all",
+      "title": "Chosen Rank"
+    },
+    "note": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Note"
+    }
+  },
+  "required": [
+    "approver"
+  ],
+  "title": "ApprovalDecision",
+  "type": "object"
+}

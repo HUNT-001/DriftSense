@@ -1,0 +1,323 @@
+{
+  "$defs": {
+    "Artifact": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "heatmap",
+            "overlay",
+            "contour",
+            "candidates",
+            "json"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sha256"
+        },
+        "uri": {
+          "description": "Relative path locally, s3:// key in service",
+          "title": "Uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "uri"
+      ],
+      "title": "Artifact",
+      "type": "object"
+    },
+    "Candidate": {
+      "additionalProperties": false,
+      "properties": {
+        "lattice_score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lattice Score"
+        },
+        "rank": {
+          "minimum": 1,
+          "title": "Rank",
+          "type": "integer"
+        },
+        "roughness_score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Roughness Score"
+        },
+        "score": {
+          "description": "Final fused score, higher is better",
+          "title": "Score",
+          "type": "number"
+        },
+        "x_px": {
+          "title": "X Px",
+          "type": "number"
+        },
+        "y_px": {
+          "title": "Y Px",
+          "type": "number"
+        }
+      },
+      "required": [
+        "rank",
+        "x_px",
+        "y_px",
+        "score"
+      ],
+      "title": "Candidate",
+      "type": "object"
+    },
+    "LatticeType": {
+      "enum": [
+        "finfet",
+        "dram",
+        "grid",
+        "staggered",
+        "unknown"
+      ],
+      "title": "LatticeType",
+      "type": "string"
+    },
+    "Margin": {
+      "additionalProperties": false,
+      "properties": {
+        "calibrated": {
+          "title": "Calibrated",
+          "type": "boolean"
+        },
+        "decision": {
+          "enum": [
+            "commit",
+            "escalate"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "margin": {
+          "description": "Calibrated uniqueness margin between rank-1 and rank-2",
+          "title": "Margin",
+          "type": "number"
+        },
+        "p_correct": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "P Correct"
+        },
+        "tau": {
+          "title": "Tau",
+          "type": "number"
+        }
+      },
+      "required": [
+        "margin",
+        "tau",
+        "calibrated",
+        "decision"
+      ],
+      "title": "Margin",
+      "type": "object"
+    },
+    "Mode": {
+      "enum": [
+        "fast",
+        "accurate",
+        "dense",
+        "auto"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "Offset": {
+      "additionalProperties": false,
+      "description": "Template top-left location in search-image coordinates (x right, y down), subpixel.",
+      "properties": {
+        "pixel_size_nm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pixel Size Nm"
+        },
+        "x_nm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "X Nm"
+        },
+        "x_px": {
+          "title": "X Px",
+          "type": "number"
+        },
+        "y_nm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Y Nm"
+        },
+        "y_px": {
+          "title": "Y Px",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x_px",
+        "y_px"
+      ],
+      "title": "Offset",
+      "type": "object"
+    },
+    "StageTiming": {
+      "additionalProperties": false,
+      "properties": {
+        "ms": {
+          "minimum": 0,
+          "title": "Ms",
+          "type": "number"
+        },
+        "stage": {
+          "description": "e.g. ingest, lattice, rectify, roughness, score, cascade, contour, confidence, subpixel, explain",
+          "title": "Stage",
+          "type": "string"
+        }
+      },
+      "required": [
+        "stage",
+        "ms"
+      ],
+      "title": "StageTiming",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "artifacts": {
+      "items": {
+        "$ref": "#/$defs/Artifact"
+      },
+      "title": "Artifacts",
+      "type": "array"
+    },
+    "candidates": {
+      "items": {
+        "$ref": "#/$defs/Candidate"
+      },
+      "minItems": 1,
+      "title": "Candidates",
+      "type": "array"
+    },
+    "contract_version": {
+      "default": "1.0.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "engine": {
+      "enum": [
+        "fake",
+        "v1",
+        "v2"
+      ],
+      "title": "Engine",
+      "type": "string"
+    },
+    "engine_version": {
+      "title": "Engine Version",
+      "type": "string"
+    },
+    "lattice_type": {
+      "$ref": "#/$defs/LatticeType",
+      "default": "unknown"
+    },
+    "margin": {
+      "$ref": "#/$defs/Margin"
+    },
+    "mode": {
+      "$ref": "#/$defs/Mode"
+    },
+    "offset": {
+      "$ref": "#/$defs/Offset"
+    },
+    "timings": {
+      "items": {
+        "$ref": "#/$defs/StageTiming"
+      },
+      "title": "Timings",
+      "type": "array"
+    },
+    "total_ms": {
+      "minimum": 0,
+      "title": "Total Ms",
+      "type": "number"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "engine",
+    "engine_version",
+    "mode",
+    "offset",
+    "candidates",
+    "margin",
+    "total_ms"
+  ],
+  "title": "LocalizeResult",
+  "type": "object"
+}
