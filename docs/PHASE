@@ -1,0 +1,1280 @@
+# DriftSense Pilot: a two-person, two-Claude-Code Git plan (Oct 11–26, 2026)
+
+**Use trunk-based development. `main` is the only long-lived branch. Each person works on short-lived branches named by phase (`a/p2-…`, `b/p4-…`) that last one to two days. Every change reaches `main` through a squash-merged PR that the other person approves and that passes CI on both amd64 and arm64. The plan holds together because of three things:** (1) Person A commits a frozen interface contract and a fake engine first, so Person B never waits on A. (2) A committed hook in `.claude/` stops either Claude Code from editing the other person's directories or touching shared files outside a `shared/*` branch. (3) A fresh Claude Code session that has never seen the work verifies the final build from a clean clone before the `submission` tag goes on.
+
+## TL;DR
+- **Branching:** one protected `main` (ruleset: PR required, 1 approval, squash-only, linear history, required checks `test (ubuntu-24.04)`, `test (ubuntu-24.04-arm)`, `contracts`, `lint`). Branches live 1–2 days: `a/pN-topic`, `b/pN-topic`, `shared/topic` for shared files, `int/gN-topic` for integration, `fix/topic` after freeze. Gate tags: `v1-munichtech` → `g2-pass` → `v2-freeze` (Oct 19 12:00) → `numbers-lock` (Oct 23) → `rc1` (Oct 25) → `submission` (Oct 26 ~20:00 IST).
+- **Decoupling:** on Oct 11, Person A merges `driftsense/contracts.py`, the `driftsense.api.localize()` facade, a deterministic `fake` engine, a `v1` adapter, JSON Schemas and contract tests. Person B builds the service, infra, UI, bench and docs pipeline against `DRIFTSENSE_ENGINE=fake|v1`. On Oct 16–17 (G2), one config line switches B's stack to v2.
+- **Process:** both machines get identical Claude Code behaviour from committed `CLAUDE.md`, `.claude/settings.json`, hooks and slash commands (`/sync`, `/open-pr`, `/review-pr`, `/gate-check`, `/handoff`, `/resolve-conflict`, `/tag-gate`). Personal identity lives in the gitignored `CLAUDE.local.md` plus `git config driftsense.owner A|B`. Each person reviews the other's area on Oct 25. An independent verifier session does the judge dry run on Oct 26 before you submit at 21:00 IST.
+
+---
+
+## Key Findings (what the research changes about the plan)
+
+1. **The repo is public. That helps and hurts.** HUNT-001/DriftSense is public.\[1\] The GitHub docs say rulesets "are available in public repositories with GitHub Free", so you can enforce protection without paying.\[2\] The `ubuntu-24.04-arm` standard runner is free on public repos with 4 vCPUs.\[3\] GitHub's Jan 29, 2026 changelog ("arm64 standard runners are now available in private repositories") says these runners also work in private repos: "In private repositories, these runners have two vCPUs; in public repositories, they have four vCPUs", and private-repo use counts toward your plan's free minutes. **The downside: SEALED test data must never be committed.** Keep it in a private S3 bucket that only Person A's SSO role can read. Commit only the protocol and its hash.
+2. **Do NOT turn on "Require review from Code Owners".** GitHub won't let a PR author approve their own PR, and in this repo each directory has a single owner who is also the usual author. So most PRs would have no eligible code-owner reviewer and could never merge. (This is my inference from how GitHub reviews work, so check it in the ruleset UI.) Keep CODEOWNERS for automatic review requests and as ownership documentation, and require 1 approval of any kind.
+3. **"Require approval of the most recent reviewable push" will slow you down.** Strict up-to-date checks force a rebase each time the other person merges, and this setting then demands a fresh approval after every rebase. Leave it off. Turn on "dismiss stale approvals" instead, which GitHub applies only "when commits are pushed that affect the diff". A clean rebase therefore keeps the approval.\[4\]
+4. **Claude Code's memory is per machine, so anything the other machine needs has to be in git.** Claude Code loads `CLAUDE.md` and `CLAUDE.local.md` from the working directory and every directory above it. The docs say to add `CLAUDE.local.md` to `.gitignore`.\[5\] Auto memory lives in `~/.claude/projects/<project>/memory/` and is never shared.\[6\] Handoffs must therefore go through PR bodies, GitHub issues or committed docs, never through "Claude remembers".
+5. **Hooks enforce the rules; CLAUDE.md only states them.** The hooks guide says hooks give "deterministic control: certain actions always happen rather than relying on the LLM to choose to run them".\[7\] A `PreToolUse` hook that exits 2 blocks the tool call, and its stderr goes back to Claude as feedback.\[7\] The permissions docs add that a blocking hook "takes precedence over allow rules".\[8\] Ownership and the ban on pushing to `main` therefore go in hooks, not just in prose.
+6. **Settings layering lets you share policy and keep personal tweaks.** `.claude/settings.json` is committed. `.claude/settings.local.json` is personal and wins on conflicts.\[9\] Per the settings docs, permission arrays are merged across scopes.\[10\] Custom commands in `.claude/commands/` still work. The docs call them legacy in favour of `.claude/skills/<name>/SKILL.md`, but both give you `/name`.\[11\]\[12\]
+7. **Deadline arithmetic.** Devpost says final projects are due "October 26, 2026, at 11:59 p.m." Pacific.\[13\]\[14\]\[15\] US daylight saving ends Nov 1, 2026, so that is PDT (UTC−7) = **Oct 27 12:29 IST**. Your 12:15 IST hard stop is a sensible 14-minute buffer. Aim to submit at 21:00 IST on Oct 26.
+8. **Using Claude Code does not count toward the Agentic Vision award.** Devpost states: "Using an AI coding assistant to write the entry does not qualify as an agentic workflow". The award also requires "a trace or demonstration showing that OpenCV 5 output changes a later decision, tool call, or action".\[14\]\[16\] The trace schema below is built to show exactly that: margin vs. tau → commit or escalate.
+
+---
+
+## Details
+
+### 1. Git workflow rules (put these in CLAUDE.md §Git)
+
+**Model: trunk-based development with short-lived branches.** The AWS Well-Architected DevOps Guidance ([DL.SCM.2] "Keep feature branches short-lived", a foundational best practice) says: "We recommend trunk-based development paired with a pull request workflow utilizing short-lived feature branches as the most effective branching strategy when practicing DevOps." On top of that, this plan asks each person to merge to `main` at least once a day. Long-lived per-person branches (`personA`, `personB`) would put all the integration risk into Oct 16–20, when you have the least slack. Reject them.
+
+| Rule | Setting |
+|---|---|
+| Branch names | `a/p<phase>-<topic>`, `b/p<phase>-<topic>`, `shared/<topic>` (shared files only), `int/g<gate>-<topic>` (integration), `fix/<topic>` (after freeze), `docs/<topic>` |
+| Branch lifetime | ≤ 2 days; open a draft PR on day 1 |
+| Base | always `origin/main`; never branch from another person's branch (no stacked PRs across people) |
+| Update policy | `git fetch && git rebase origin/main` on your **own** branch only; push with `--force-with-lease`; never rebase someone else's branch |
+| Merge method | squash only (ruleset `allowed_merge_methods: ["squash"]` + linear history) |
+| Reviews | 1 approval from the other person; Claude drafts the review and the human submits it under their own `gh` account |
+| Commit messages | Conventional style: `feat(v2/lattice): …`, `fix(service): …`, `chore(shared): …`; the squash title is the PR title |
+| Unfinished work | merge behind the engine registry/env flag (`DRIFTSENSE_ENGINE`), not on long branches |
+| Shared files | edited only on `shared/*` branches, announced at sync, merged **before** that day's feature PRs |
+| Tags | annotated, created only by humans via `/tag-gate` (the hook blocks agents otherwise) |
+| Stacked PRs | avoid them. If you do stack, don't use `--delete-branch` on the base PR. GitHub issue #1781 in Claudfather/Claudlobby shows why: PR #1776 was merged with `gh pr merge <n> --squash --admin --delete-branch` at 11:53:01Z, and the PR stacked on it (#1779) "went CLOSED at 11:53:03Z, two seconds later". Retarget dependent PRs first with `gh pr edit <m> --base main` |
+
+**Ownership map** (this is what CODEOWNERS and the edit hook both use):
+
+| Area | Owner | Steward for conflicts |
+|---|---|---|
+| `driftsense/v1/` (frozen), `driftsense/v2/`, `driftsense/sim/`, `driftsense/agent/`, `driftsense/engines/`, `eval/`, `tests/engine/`, `tests/agent/`, `docs/REPORT.md`, `docs/virtual_sem.md`, `docs/PRIOR_WORK.md`, `results/accuracy/`, `results/sealed/`, `results/agent/` | A | A |
+| `service/`, `infra/`, `bench/`, `ui/`, `scripts/`, `tests/service/`, `tests/infra/`, other `docs/*`, `results/bench/`, `.github/workflows/deploy.yml` | B | B |
+| `driftsense/contracts.py`, `driftsense/api.py`, `contracts/`, `tests/contract/` | shared | **A** |
+| `requirements.in`, `requirements*.lock`, `Makefile`, `.github/` (CI, rulesets, CODEOWNERS, template) | shared | **B** |
+| `CLAUDE.md`, `.claude/`, `pyproject.toml`, `.gitignore` | shared | **A** |
+
+**Conflict ownership.** Whoever merges second rebases and resolves. In files you own, you resolve. In shared files, the steward resolves, or at least approves the resolution. Lockfiles are never merged by hand: take main's version and regenerate (§6).
+
+### 2. Tags and gates
+
+| Tag | When (IST) | Created by | Condition |
+|---|---|---|---|
+| `v1-munichtech` | exists | — | golden reference; tag ruleset blocks update/delete |
+| `g2-pass` | Oct 16 ~19:00 | A | `make gate-g2` PASS: ≥10× speed, DEV accuracy within v1 95% CI, dense recall@20 ≥98% (else cascade on) |
+| `v2-freeze` | Oct 19 12:00 | A | engine code frozen; after this only `fix/*` with both approvals |
+| `g4-pass` | Oct 19 evening | B | deployed endpoint runs a job on the COOL worker (job record shows `cool: true`, arm64, c8g) |
+| `g5-pass` | Oct 20 18:00 | A | agent episode trace with ≥1 commit and ≥1 escalation; MCP server smoke test |
+| `protocol-v1` | Oct 21 | A | pre-registered sealed protocol; SHA-256 recorded in tag message |
+| `numbers-lock` | Oct 23 evening | B (after A approves) | every number in docs regenerated from `results/*.json`; `check_claims.py` green |
+| `rc1` (`rc2`…) | Oct 25 20:00 | B | cross-verification complete |
+| `submission` | Oct 26 ~20:00 | A | verifier PASS; Devpost submitted at 21:00 from this SHA |
+
+### 3. Interface contract (committed first, Oct 11)
+
+Person B imports only `driftsense.api.localize` and the models in `driftsense.contracts`. The engine is chosen with `DRIFTSENSE_ENGINE=fake|v1|v2`. Until G2 the default is `v1`. A one-line PR at G2 flips the default to `v2`. `driftsense.v2.localize` exists, as the plan agreed, and is re-exported from `driftsense/v2/__init__.py`.
+
+**`driftsense/contracts.py`**
+```python
+"""DriftSense public contracts. CHANGING THIS FILE REQUIRES A shared/* BRANCH AND BOTH APPROVALS.
+Bump CONTRACT_VERSION (semver) on any change; minor = additive optional fields only."""
+from __future__ import annotations
+
+import json
+from datetime import datetime
+from enum import Enum
+from pathlib import Path
+from typing import Literal, Optional
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+CONTRACT_VERSION = "1.0.0"
+
+
+class DriftSenseInputError(ValueError):
+    """Raised for undecodable images, template larger than search, empty input."""
+
+
+class _Model(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+
+class Mode(str, Enum):
+    FAST = "fast"          # lattice + roughness, no cascade
+    ACCURATE = "accurate"  # full pipeline incl. subpixel
+    DENSE = "dense"        # dense candidate scan (recall@20 path)
+    AUTO = "auto"          # engine decides (cascade if margin low)
+
+
+class Budget(_Model):
+    max_ms: int = Field(2000, ge=1, description="Soft wall-clock budget for one localize call")
+    max_candidates: int = Field(20, ge=1, le=200)
+    tau: Optional[float] = Field(None, description="Override calibrated uniqueness-margin threshold; None = calibrated")
+
+
+class LatticeType(str, Enum):
+    FINFET = "finfet"; DRAM = "dram"; GRID = "grid"; STAGGERED = "staggered"; UNKNOWN = "unknown"
+
+
+class Offset(_Model):
+    """Template top-left location in search-image coordinates (x right, y down), subpixel."""
+    x_px: float
+    y_px: float
+    x_nm: Optional[float] = None
+    y_nm: Optional[float] = None
+    pixel_size_nm: Optional[float] = None
+
+
+class Candidate(_Model):
+    rank: int = Field(..., ge=1)
+    x_px: float
+    y_px: float
+    score: float = Field(..., description="Final fused score, higher is better")
+    lattice_score: Optional[float] = None
+    roughness_score: Optional[float] = None
+
+
+class Margin(_Model):
+    margin: float = Field(..., description="Calibrated uniqueness margin between rank-1 and rank-2")
+    tau: float
+    calibrated: bool
+    p_correct: Optional[float] = Field(None, ge=0, le=1)
+    decision: Literal["commit", "escalate"]
+
+    @model_validator(mode="after")
+    def _decision_matches(self) -> "Margin":
+        if (self.decision == "commit") != (self.margin >= self.tau):
+            raise ValueError("decision must be 'commit' iff margin >= tau")
+        return self
+
+
+class StageTiming(_Model):
+    stage: str = Field(..., description="e.g. ingest, lattice, rectify, roughness, score, cascade, contour, confidence, subpixel, explain")
+    ms: float = Field(..., ge=0)
+
+
+class Artifact(_Model):
+    kind: Literal["heatmap", "overlay", "contour", "candidates", "json"]
+    uri: str = Field(..., description="Relative path locally, s3:// key in service")
+    sha256: Optional[str] = None
+
+
+class LocalizeResult(_Model):
+    contract_version: str = CONTRACT_VERSION
+    engine: Literal["fake", "v1", "v2"]
+    engine_version: str
+    mode: Mode
+    lattice_type: LatticeType = LatticeType.UNKNOWN
+    offset: Offset
+    candidates: list[Candidate] = Field(..., min_length=1)
+    margin: Margin
+    timings: list[StageTiming] = Field(default_factory=list)
+    total_ms: float = Field(..., ge=0)
+    artifacts: list[Artifact] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _ranks(self) -> "LocalizeResult":
+        if [c.rank for c in self.candidates] != list(range(1, len(self.candidates) + 1)):
+            raise ValueError("candidate ranks must be 1..n in order")
+        return self
+
+
+# ---------- Agent trace (one JSON object per line, file: traces/<run_id>.jsonl) ----------
+class TraceEvent(_Model):
+    v: Literal["1"] = "1"
+    run_id: str
+    step: int = Field(..., ge=0)
+    ts: datetime
+    kind: Literal["observe", "tool_call", "tool_result", "decision", "commit_move",
+                  "escalate", "human_approval", "error", "episode_end"]
+    tool: Optional[str] = None                      # e.g. "sem.acquire", "driftsense.localize", "stage.move"
+    args: dict = Field(default_factory=dict)
+    result_summary: dict = Field(default_factory=dict)
+    margin: Optional[float] = None
+    tau: Optional[float] = None
+    because: Optional[str] = Field(None, description="Human-readable reason, e.g. 'margin 0.31 >= tau 0.22'")
+    stage_move_nm: Optional[tuple[float, float]] = None
+    latency_ms: Optional[float] = None
+    policy: Optional[Literal["rules", "llm"]] = None
+
+
+# ---------- Service job API ----------
+class JobCreate(_Model):
+    demo_id: Optional[str] = None
+    template_key: Optional[str] = None
+    search_key: Optional[str] = None
+    mode: Mode = Mode.AUTO
+    budget: Budget = Budget()
+    agent: bool = False
+    client_token: Optional[str] = Field(None, description="Idempotency key")
+
+    @model_validator(mode="after")
+    def _source(self) -> "JobCreate":
+        if not self.demo_id and not (self.template_key and self.search_key):
+            raise ValueError("provide demo_id or both template_key and search_key")
+        return self
+
+
+class WorkerInfo(_Model):
+    instance_type: Optional[str] = None
+    arch: Literal["x86_64", "aarch64", "arm64", "unknown"] = "unknown"
+    opencv_version: str
+    numpy_version: str
+    cool: bool = False
+
+
+class ApprovalRequest(_Model):
+    options: list[Candidate] = Field(..., min_length=1, max_length=3)
+    margin: Margin
+
+
+class ApprovalDecision(_Model):
+    chosen_rank: Optional[int] = Field(None, ge=1, le=3, description="None = reject all")
+    approver: str
+    note: Optional[str] = None
+
+
+class ErrorInfo(_Model):
+    code: str
+    message: str
+
+
+class JobStatus(_Model):
+    job_id: str
+    status: Literal["queued", "running", "awaiting_approval", "succeeded", "failed"]
+    created_at: datetime
+    updated_at: datetime
+    engine: Optional[Literal["fake", "v1", "v2"]] = None
+    result: Optional[LocalizeResult] = None
+    trace_key: Optional[str] = None
+    approval: Optional[ApprovalRequest] = None
+    error: Optional[ErrorInfo] = None
+    worker: Optional[WorkerInfo] = None
+
+
+# ---------- results/*.json ----------
+class EnvInfo(_Model):
+    python: str
+    opencv: str
+    numpy: str
+    platform: str
+    arch: str
+    instance_type: Optional[str] = None
+    cool: bool = False
+
+
+class Metric(_Model):
+    value: float
+    unit: str
+    ci_low: Optional[float] = None
+    ci_high: Optional[float] = None
+    n: Optional[int] = None
+
+
+class ResultsFile(_Model):
+    schema_id: Literal["driftsense.results/1"] = "driftsense.results/1"
+    name: str
+    produced_by: str = Field(..., description="Script path that generated this file")
+    git_sha: str
+    created_at: datetime
+    dataset: Literal["dev", "sealed", "synthetic", "bench"]
+    env: EnvInfo
+    metrics: dict[str, Metric]
+    protocol_sha256: Optional[str] = None
+
+
+SCHEMAS = {
+    "localize_result": LocalizeResult, "trace_event": TraceEvent, "job_create": JobCreate,
+    "job_status": JobStatus, "approval_decision": ApprovalDecision, "results_file": ResultsFile,
+}
+
+
+def export_schemas(out_dir: Path) -> None:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for name, model in SCHEMAS.items():
+        (out_dir / f"{name}.schema.json").write_text(
+            json.dumps(model.model_json_schema(), indent=2, sort_keys=True) + "\n")
+```
+
+**`driftsense/api.py`** (the stable facade)
+```python
+from __future__ import annotations
+import importlib, os
+from driftsense.contracts import Budget, LocalizeResult, Mode
+
+_ENGINES = {
+    "fake": "driftsense.engines.fake:localize",
+    "v1": "driftsense.engines.v1_adapter:localize",
+    "v2": "driftsense.v2.engine:localize",
+}
+DEFAULT_ENGINE = "v1"   # flipped to "v2" by A in int/g2-default-v2 after g2-pass
+
+
+def available_engines() -> list[str]:
+    out = []
+    for name, target in _ENGINES.items():
+        try:
+            importlib.import_module(target.split(":")[0]); out.append(name)
+        except Exception:
+            pass
+    return out
+
+
+def localize(template_bytes: bytes, search_bytes: bytes, mode: Mode = Mode.AUTO,
+             budget: Budget | None = None, *, engine: str | None = None) -> LocalizeResult:
+    name = engine or os.environ.get("DRIFTSENSE_ENGINE", DEFAULT_ENGINE)
+    if name not in _ENGINES:
+        raise ValueError(f"unknown engine {name!r}; choose from {sorted(_ENGINES)}")
+    mod, fn = _ENGINES[name].split(":")
+    return getattr(importlib.import_module(mod), fn)(template_bytes, search_bytes, mode, budget or Budget())
+```
+
+**`driftsense/engines/fake.py`** (deterministic, fast and actually correct on easy pairs, so B's demos look real)
+```python
+from __future__ import annotations
+import time
+import cv2
+import numpy as np
+from driftsense.contracts import (Budget, Candidate, DriftSenseInputError, LocalizeResult, Margin,
+                                  Mode, Offset, StageTiming)
+
+def _decode(b: bytes, name: str) -> np.ndarray:
+    if not b:
+        raise DriftSenseInputError(f"{name}: empty")
+    img = cv2.imdecode(np.frombuffer(b, np.uint8), cv2.IMREAD_GRAYSCALE)
+    if img is None:
+        raise DriftSenseInputError(f"{name}: not a decodable image")
+    return img
+
+def localize(template_bytes: bytes, search_bytes: bytes, mode: Mode, budget: Budget) -> LocalizeResult:
+    t0 = time.perf_counter()
+    T, S = _decode(template_bytes, "template"), _decode(search_bytes, "search")
+    if T.shape[0] > S.shape[0] or T.shape[1] > S.shape[1]:
+        raise DriftSenseInputError("template larger than search")
+    t1 = time.perf_counter()
+    R = cv2.matchTemplate(S, T, cv2.TM_CCOEFF_NORMED)
+    h, w = T.shape
+    cands = []
+    for k in range(min(budget.max_candidates, 5)):
+        _, mx, _, (x, y) = cv2.minMaxLoc(R)
+        cands.append(Candidate(rank=k + 1, x_px=float(x), y_px=float(y), score=float(mx)))
+        R[max(0, y - h // 2): y + h // 2 + 1, max(0, x - w // 2): x + w // 2 + 1] = -1.0
+    t2 = time.perf_counter()
+    m = cands[0].score - (cands[1].score if len(cands) > 1 else -1.0)
+    tau = budget.tau if budget.tau is not None else 0.10
+    return LocalizeResult(
+        engine="fake", engine_version="fake-1", mode=mode,
+        offset=Offset(x_px=cands[0].x_px, y_px=cands[0].y_px), candidates=cands,
+        margin=Margin(margin=m, tau=tau, calibrated=False, decision="commit" if m >= tau else "escalate"),
+        timings=[StageTiming(stage="ingest", ms=(t1 - t0) * 1e3), StageTiming(stage="score", ms=(t2 - t1) * 1e3)],
+        total_ms=(t2 - t0) * 1e3, warnings=["fake engine: not for reported numbers"])
+```
+`driftsense/engines/v1_adapter.py` wraps the frozen v1 entry point and maps its output into `LocalizeResult` (`engine="v1"`, `calibrated=False`). Its body depends on v1's actual return type, so Prompt S4 has Claude write it. `driftsense/v2/engine.py` starts as a stub that raises `NotImplementedError`; `available_engines()` only reports what imports cleanly.
+
+**`tests/contract/test_contracts.py`**
+```python
+import json, pathlib
+import cv2, numpy as np, pytest
+from driftsense.api import available_engines, localize
+from driftsense.contracts import (CONTRACT_VERSION, Budget, DriftSenseInputError, JobCreate, JobStatus,
+                                  LocalizeResult, Margin, Mode, TraceEvent, export_schemas)
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+
+def _png(a):
+    ok, buf = cv2.imencode(".png", a); assert ok; return buf.tobytes()
+
+@pytest.fixture
+def pair():
+    rng = np.random.default_rng(0)
+    s = (rng.random((256, 256)) * 255).astype(np.uint8)
+    return _png(s[64:128, 80:144].copy()), _png(s)
+
+def test_committed_schemas_match_models(tmp_path):
+    export_schemas(tmp_path)
+    for f in sorted(tmp_path.glob("*.schema.json")):
+        committed = ROOT / "contracts" / f.name
+        assert committed.exists(), f"missing {committed}: run `make contracts`"
+        assert json.loads(committed.read_text()) == json.loads(f.read_text()), \
+            f"{f.name} drifted: run `make contracts` on a shared/* branch and get both approvals"
+
+@pytest.mark.parametrize("engine", ["fake", "v1", "v2"])
+def test_engine_honours_contract(engine, pair, monkeypatch):
+    if engine not in available_engines():
+        pytest.skip(f"{engine} not importable yet")
+    monkeypatch.setenv("DRIFTSENSE_ENGINE", engine)
+    try:
+        r = localize(*pair, mode=Mode.AUTO, budget=Budget())
+    except NotImplementedError:
+        pytest.skip(f"{engine} still a stub")
+    assert isinstance(r, LocalizeResult) and r.contract_version == CONTRACT_VERSION
+    LocalizeResult.model_validate_json(r.model_dump_json())
+    assert 1 <= len(r.candidates) <= Budget().max_candidates
+    assert r.total_ms >= 0
+
+def test_fake_is_deterministic_and_correct(pair):
+    a = localize(*pair, engine="fake"); b = localize(*pair, engine="fake")
+    assert a.offset == b.offset and (a.offset.x_px, a.offset.y_px) == (80.0, 64.0)
+
+def test_bad_input_raises():
+    with pytest.raises(DriftSenseInputError):
+        localize(b"not an image", b"also not", engine="fake")
+
+def test_margin_decision_invariant():
+    with pytest.raises(ValueError):
+        Margin(margin=0.1, tau=0.2, calibrated=True, decision="commit")
+
+def test_trace_and_job_roundtrip(pair):
+    r = localize(*pair, engine="fake")
+    ev = TraceEvent(run_id="r1", step=0, ts="2026-10-11T00:00:00Z", kind="decision",
+                    margin=r.margin.margin, tau=r.margin.tau, because="margin vs tau")
+    assert TraceEvent.model_validate_json(ev.model_dump_json()) == ev
+    js = JobStatus(job_id="j1", status="succeeded", created_at="2026-10-11T00:00:00Z",
+                   updated_at="2026-10-11T00:00:01Z", engine="fake", result=r)
+    assert JobStatus.model_validate_json(js.model_dump_json()).result == r
+    with pytest.raises(ValueError):
+        JobCreate()
+```
+
+**Rules for changing the contract:** it is additive only after Oct 13. Any change needs a `shared/contract-*` branch, a `CONTRACT_VERSION` bump, regenerated `contracts/*.schema.json` (`make contracts`) and both approvals. B's service must store `contract_version` with every job.
+
+### 4. Day-by-day schedule (IST)
+
+Daily ritual on both machines:
+- **09:30** — 10-minute call. Each person runs `/sync`, states today's branch, and declares any shared-file change (which then goes first).
+- **13:00** — shared-file window: `shared/*` PRs are reviewed and merged.
+- **18:00** — every active branch has an open PR (a draft is fine).
+- **21:00** — review the other person's PRs with `/review-pr`.
+- **22:00** — merge what is approved and green.
+
+No branch lives past 48 hours.
+
+| Date | Person A (branch → PR to `main`) | Person B (branch → PR to `main`) | Merge order / gate |
+|---|---|---|---|
+| **Sun Oct 11** | Setup prompts S1–S5 on `shared/p0-bootstrap` (CLAUDE.md, .claude, CI, rulesets, CODEOWNERS, contracts + fake + v1 adapter). Then `a/p1-profile` | Machine + AWS SSO setup; reviews and approves `shared/p0-bootstrap` by 16:00; starts `b/p4-cdk-core` | 1) `shared/p0-bootstrap` (A, approved by B) → apply rulesets after merge. G0 confirmed |
+| Mon Oct 12 | `a/p1-profile` PR (golden baseline `results/accuracy/baseline_v1.json`); start `a/p2-s0-s2` | `b/p4-cdk-core` PR (synth-only: S3, DynamoDB, SQS+DLQ, HTTP API + arm64 Lambda skeleton, no NAT, Budgets) | `a/p1-profile`, `b/p4-cdk-core` |
+| Tue Oct 13 | `a/p2-s0-s2` PR (ingest/lattice/rectify behind `engine="v2"`) | `b/p4-service` (FastAPI+Mangum API, SQS worker, DynamoDB/S3 storage, all against `fake`; moto tests) | `a/p2-s0-s2`. Contract becomes additive-only |
+| Wed Oct 14 | `a/p2-s3-s6` (roughness, score, cascade, contour) | `b/p4-service` PR; start `b/p9-docs-pipeline` (`scripts/render_docs.py`, `check_claims.py`) | `b/p4-service` |
+| Thu Oct 15 | `a/p2-s3-s6` PR; start `a/p3-dram` | `b/p9-docs-pipeline` PR; start `b/p4-cool-worker` (EC2 ASG c8g.large COOL 3.1 AMI, SSM, IMDSv2, OIDC deploy workflow) | `a/p2-s3-s6`, `b/p9-docs-pipeline` |
+| **Fri Oct 16 (G2)** | `a/p2-g2` (subpixel, explain, `driftsense.v2.localize`, `make gate-g2`) PR by 15:00 → G2 review 18:00 → tag `g2-pass` | Top priority 15:00–18:00: review `a/p2-g2` (run `/gate-check G2` independently); continue cool-worker | `a/p2-g2` → then `int/g2-default-v2` (A, 1-line `DEFAULT_ENGINE="v2"`) |
+| Sat Oct 17 | `a/p3-dram` PR; help B debug v2 on arm64 | `int/g2-v2-swap` (worker uses v2; deployed e2e on `demo_*`); `b/p4-cool-worker` PR | `a/p3-dram`, `b/p4-cool-worker`, `int/g2-v2-swap` |
+| Sun Oct 18 | `a/p3-confidence` (calibration → calibrated tau) PR; start `a/p5-virtual-sem` | `b/p4-canary-dash` (CloudWatch dashboard, canary); start `b/p8-ui-skeleton` vs fake | `a/p3-confidence` (must merge before freeze) |
+| **Mon Oct 19 (G3, G4)** | 12:00 tag `v2-freeze`; `a/p5-virtual-sem` PR | `b/p4-canary-dash` PR → G4 evening: endpoint job on COOL worker → `g4-pass` | Freeze first, then sim/agent PRs (not engine) |
+| **Tue Oct 20 (G5)** | `a/p5-agent-mcp` (tools, rules + LLM policy, runner, trace JSONL, MCP server) PR by 14:00 → 18:00 go/no-go → `g5-pass` | `b/p8-ui-skeleton` PR; after G5: `int/g5-agent-service`; start `b/p6-cool-bench` | `b/p8-ui-skeleton`, `a/p5-agent-mcp`, then `int/g5-agent-service` (B) |
+| Wed Oct 21 | `a/p7-protocol` (pre-registered protocol, hash) → tag `protocol-v1`; `eval/agent_eval` | `int/g5-agent-service` PR (approval card endpoint); `b/p6-cool-bench` running on bench stack; start `b/p8-ui-polish` | `a/p7-protocol`, `int/g5-agent-service` |
+| Thu Oct 22 | `a/p7-sealed-run`: run sealed eval **once** under the tag; `results/sealed/*.json`, stats, charts, failure gallery | `b/p6-cool-bench` PR (`results/bench/*.json`, COOL evidence) | `b/p6-cool-bench`, `a/p7-sealed-run` |
+| **Fri Oct 23 (numbers lock)** | Review B's rendered docs numbers vs results | `docs/numbers-lock`: `make docs` + `check_claims` → tag `numbers-lock` | After this, any results change needs both approvals + `numbers-lock-2` |
+| Sat Oct 24 | `a/p9-report` (REPORT, virtual_sem, PRIOR_WORK); video script | `b/p8-ui-polish` PR (a11y); `b/p9-docs` (ARCHITECTURE 3 Mermaid, COOL_EVIDENCE, SUBMISSION, RESPONSIBLE_USE) | All P8/P9 PRs merged by 22:00 |
+| **Sun Oct 25** | **Verifies B's area** (prompt X-A); `fix/*` for own findings; record video | **Verifies A's area** (prompt X-B); `fix/*` | 20:00 tag `rc1` (B) |
+| **Mon Oct 26** | 09:00 fresh verifier session (V1–V3) on a clean clone; only P0 blockers fixed (`fix/*`, both approve); 20:00 tag `submission` | Endpoint/COOL live check; Devpost form; uploads; screenshot | Judge dry run done by 18:00; submit 21:00 IST; official cutoff Oct 27 12:29 IST |
+
+Load-balancing note: A's load is heaviest on Oct 15–20, when P3 and P5 overlap. If G2 slips past Oct 16 21:00, the contingency rule applies: B takes `driftsense/sim/instrument.py` (VirtualSEM). Ownership moves through a `shared/ownership-vsem` PR that edits `.claude/ownership.txt` and CODEOWNERS.
+
+### 5. Machine setup (both machines unless marked)
+
+```bash
+# 1. Tools: git >= 2.40, gh, jq (hooks need it), Python 3.12, Node 20+ (CDK; B only), AWS CLI v2 (both), Claude Code
+gh auth login                       # HTTPS, scopes: repo, workflow
+gh auth setup-git
+git config --global user.name "Your Name"; git config --global user.email "you@users.noreply.github.com"
+git config --global pull.rebase true
+git config --global rebase.autoStash true
+git config --global rerere.enabled true          # remembers conflict resolutions across repeated rebases
+git config --global push.autoSetupRemote true
+git config --global fetch.prune true
+
+# 2. Clone + identity used by hooks
+git clone https://github.com/HUNT-001/DriftSense.git && cd DriftSense
+git config driftsense.owner A        # Person B: B
+python3.12 -m venv .venv && source .venv/bin/activate
+python -m pip install -U pip && pip install -r requirements.lock && pip install -e . --no-deps
+python -c "import cv2, numpy; print(cv2.__version__, numpy.__version__)"   # expect 5.0.0.x / 2.x
+
+# 3. Personal Claude memory (gitignored)
+cat > CLAUDE.local.md <<'EOF'
+I am Person A (GitHub @PERSON_A_GH). My branch prefix is a/. My teammate is Person B (@PERSON_B_GH).
+I own the engine, accuracy, virtual SEM, agent and sealed evaluation. I never edit B's paths; I file /handoff issues instead.
+EOF
+```
+
+**AWS (one shared account, no shared credentials):**
+- Enable IAM Identity Center. Create two users and two permission sets.
+  - `DriftSenseDeploy` → **B** (admin on this account for CDK).
+  - `DriftSenseDev` → **A**: read-only CloudFormation/CloudWatch, read of the sealed bucket, `ssm:StartSession` to bench instances, run/terminate of bench stack instances by tag.
+- Each person runs `aws configure sso --profile driftsense` and `aws sso login --profile driftsense`. No IAM access keys on laptops.
+- GitHub Actions deploys **only** via OIDC with `aws-actions/configure-aws-credentials` and `role-to-assume`. GitHub's guide says this lets workflows access AWS "without needing to store the AWS credentials as long-lived GitHub secrets". The job needs `permissions: id-token: write`.\[17\] Restrict the trust policy to `token.actions.githubusercontent.com:aud = sts.amazonaws.com` and `sub = repo:HUNT-001/DriftSense:ref:refs/heads/main`. If the deploy job uses a GitHub `environment`, the subject becomes `repo:HUNT-001/DriftSense:environment:<name>`, so match that instead.
+- AWS Budgets alarm at 50/80/100% of the grant, emailed to both of you.
+- GitHub secrets/variables: `AWS_DEPLOY_ROLE_ARN` (variable), plus `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` if you install the Claude review action. Never commit `.env` (the settings deny-list blocks Claude from reading it).
+- Sealed data: private S3 bucket `driftsense-sealed-<acct>`, SSE-KMS, readable only by `DriftSenseDev`. `eval/sealed_run.py` downloads it to a temp dir only when `DRIFTSENSE_ALLOW_SEALED=1` and `eval/SEALED_UNLOCK` exist.
+
+### 6. Shared-file and lockfile procedures
+
+- **requirements:** `requirements.in` is the source and `requirements.lock` is generated by `make lock` (pip-tools `pip-compile --strip-extras -o requirements.lock requirements.in` under Python 3.12 on Linux). `requirements-cool.lock` is the same list with `opencv-python-headless` removed, because COOL workers use the AMI's cv2 from `/opt/cool/venvs/python_3.12`. CI job `lock` re-runs the compile and runs `git diff --exit-code`.
+- **Lockfile conflict during rebase:** `git checkout --ours requirements.lock` (during a rebase, "ours" is the upstream `main`). Re-apply your `requirements.in` edit, run `make lock`, `git add requirements.lock`, `git rebase --continue`. Never hand-merge a lockfile.
+- **Makefile / CI / pyproject:** append targets; don't reorder. Each person owns a clearly marked section (`# ---- A targets ----`, `# ---- B targets ----`), which keeps edit hunks apart.
+- **CLAUDE.md:** steward A. B proposes changes through a `shared/claude-md-*` PR.
+- **No shared HANDOFF.md:** every handoff is a GitHub issue labelled `handoff` (via `/handoff`) or a PR-body section. Both of you writing to the same file would conflict daily.
+
+---
+
+## Prompt sets (copy-paste)
+
+### (a) Shared setup prompts — run once by the repo admin (assume Person A, owner of HUNT-001), Oct 11
+
+**S1 — Bootstrap branch, CLAUDE.md, ignore files**
+```
+You are setting up the DriftSense repo for two people (Person A, Person B) who each run Claude Code on separate machines.
+1. git fetch origin && git switch -c shared/p0-bootstrap origin/main
+2. Create/overwrite CLAUDE.md with EXACTLY the content I paste below (CLAUDE.md block). Keep the existing project facts from the old CLAUDE.md (hard constraints, KleidiCV op list, COOL rule, sealed rule, render_docs rule) under "## Project constraints" and do not drop any.
+3. Append to .gitignore: CLAUDE.local.md, .claude/settings.local.json, .claude/worktrees/, .venv/, eval/SEALED_UNLOCK, data/sealed/, *.env, .env*
+4. Create .claude/ownership.txt, .claude/hooks/{guard-bash.sh,guard-edit.sh,pre-commit-tests.sh,session-start.sh}, .claude/settings.json, .claude/commands/*.md and .claude/agents/*.md with EXACTLY the contents I paste next. chmod +x .claude/hooks/*.sh
+5. Do not commit yet. Show me `git status` and `git diff --stat`.
+```
+
+**CLAUDE.md (exact content, top part)**
+```markdown
+# DriftSense Pilot — team rules for Claude Code
+Two humans, two machines: Person A (engine, accuracy, virtual SEM, agent, sealed eval) and Person B (AWS infra, service, COOL bench, UI, docs pipeline). Read CLAUDE.local.md to learn who you are working for.
+
+## Git rules (non-negotiable; hooks enforce most of them)
+- Never commit on or push to `main`. Work on `a/p<N>-<topic>`, `b/p<N>-<topic>`, `shared/<topic>`, `int/g<N>-<topic>`, `fix/<topic>` only.
+- Start every session with /sync. Rebase only your own branch onto origin/main; push with --force-with-lease, never --force.
+- One PR per branch, opened with /open-pr, squash-merged after the other person approves and CI is green on amd64 + arm64.
+- Never edit paths owned by the other person (.claude/ownership.txt). If you need a change there, run /handoff.
+- Shared files (contracts, api.py, requirements.*, Makefile, pyproject, CLAUDE.md, .claude/, .github/) change only on a `shared/*` branch.
+- Never edit requirements*.lock by hand: edit requirements.in, run `make lock`.
+- Never edit results/*.json by hand: rerun the producing script. Never type a number into docs: docs are rendered from results by scripts/render_docs.py.
+- Never create, move or delete tags. Humans use /tag-gate.
+- Never touch driftsense/v1/ (frozen golden reference, tag v1-munichtech).
+- Never read, list or download sealed data; only eval/sealed_run.py may, and only when a human sets DRIFTSENSE_ALLOW_SEALED=1.
+- Before saying "done": `make check` passes, PR body has Summary / Files / Tests / Gate evidence / Handoff sections.
+- When unsure about ownership, contracts or gates: stop and ask the human.
+
+## Interface contract
+- Public entry point: driftsense.api.localize(template_bytes, search_bytes, mode, budget) -> LocalizeResult (driftsense/contracts.py). Engines: fake | v1 | v2 via DRIFTSENSE_ENGINE.
+- Contract changes: shared/contract-* branch, bump CONTRACT_VERSION, `make contracts`, both approvals. Additive-only after Oct 13.
+
+## Commands
+make setup | make test-fast | make test | make check (lint+tests+contracts+claims) | make contracts | make lock | make gate-g2 | make gate-g4 | make gate-g5 | make docs
+
+## Project constraints
+(keep the existing constraints here verbatim)
+```
+
+**S2 — Hooks, settings, ownership (exact file contents)**
+
+`.claude/ownership.txt`
+```
+# pattern                    owner   (first match wins; owner = A | B | shared | any)
+.claude/settings.local.json  any
+CLAUDE.local.md              any
+driftsense/contracts.py      shared
+driftsense/api.py            shared
+contracts/*                  shared
+tests/contract/*             shared
+CLAUDE.md                    shared
+.claude/*                    shared
+pyproject.toml               shared
+requirements*                shared
+Makefile                     shared
+.gitignore                   shared
+.github/workflows/deploy.yml B
+.github/*                    shared
+driftsense/*                 A
+eval/*                       A
+tests/engine/*               A
+tests/agent/*                A
+results/accuracy/*           A
+results/sealed/*             A
+results/agent/*              A
+docs/REPORT.md               A
+docs/virtual_sem.md          A
+docs/PRIOR_WORK.md           A
+service/*                    B
+infra/*                      B
+bench/*                      B
+ui/*                         B
+scripts/*                    B
+tests/service/*              B
+tests/infra/*                B
+results/bench/*              B
+docs/*                       B
+```
+
+`.claude/hooks/guard-edit.sh`
+```bash
+#!/usr/bin/env bash
+# PreToolUse(Edit|Write|MultiEdit): enforce frozen paths, generated files and ownership.
+set -uo pipefail
+INPUT=$(cat)
+FP=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // .tool_input.notebook_path // empty')
+[[ -z "$FP" ]] && exit 0
+FP="${FP//\\//}"
+REL="${FP#"$CLAUDE_PROJECT_DIR"/}"
+OWNER=$(git -C "$CLAUDE_PROJECT_DIR" config --get driftsense.owner || echo "")
+BRANCH=$(git -C "$CLAUDE_PROJECT_DIR" branch --show-current 2>/dev/null || echo "")
+deny() { echo "BLOCKED (DriftSense guard-edit): $1" >&2; exit 2; }
+
+case "$REL" in
+  driftsense/v1/*)            deny "driftsense/v1 is the frozen golden reference (v1-munichtech).";;
+  eval/sealed/*|data/sealed/*|*SEALED_UNLOCK*) deny "sealed data/unlock files are never touched by an agent.";;
+  requirements*.lock)         deny "lockfiles are generated: edit requirements.in and run 'make lock'.";;
+  results/*.json|results/*/*.json) deny "results are generated: rerun the producing script.";;
+esac
+[[ "$BRANCH" == "main" ]] && deny "you are on main. Create a branch first (git switch -c a/pN-topic or b/pN-topic)."
+
+while read -r pattern who; do
+  [[ -z "${pattern:-}" || "$pattern" == \#* ]] && continue
+  # shellcheck disable=SC2053
+  if [[ "$REL" == $pattern ]]; then
+    case "$who" in
+      any) exit 0;;
+      shared) [[ "$BRANCH" == shared/* || "$BRANCH" == int/* ]] || deny "$REL is a SHARED file. Use a shared/<topic> branch agreed at sync (see CLAUDE.md).";;
+      *) if [[ -n "$OWNER" && "$who" != "$OWNER" ]]; then deny "$REL is owned by Person $who. Run /handoff to request the change."; fi;;
+    esac
+    exit 0
+  fi
+done < "$CLAUDE_PROJECT_DIR/.claude/ownership.txt"
+exit 0
+```
+
+`.claude/hooks/guard-bash.sh`
+```bash
+#!/usr/bin/env bash
+# PreToolUse(Bash): git safety rails.
+set -uo pipefail
+INPUT=$(cat)
+CMD=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')
+BRANCH=$(git -C "$CLAUDE_PROJECT_DIR" branch --show-current 2>/dev/null || echo "")
+deny() { echo "BLOCKED (DriftSense guard-bash): $1" >&2; exit 2; }
+
+if [[ "$BRANCH" == "main" ]] && grep -Eq '(^|[;&|[:space:]])git[[:space:]]+(commit|merge|cherry-pick|rebase)' <<<"$CMD"; then
+  deny "never commit/merge on main. git switch -c <a|b>/p<N>-<topic> origin/main"
+fi
+grep -Eq 'git[[:space:]]+push([^|;&]*[[:space:]])(origin[[:space:]]+)?(HEAD:)?(refs/heads/)?main([[:space:]]|$)' <<<"$CMD" && deny "never push to main; use /open-pr."
+grep -Eq 'git[[:space:]]+push[^|;&]*(--force([[:space:]]|$)|[[:space:]]-f([[:space:]]|$))' <<<"$CMD" && deny "use --force-with-lease on your own branch only."
+grep -Eq 'git[[:space:]]+(reset[[:space:]]+--hard|clean[[:space:]]+-[a-z]*f)|rm[[:space:]]+-rf[[:space:]]+(/|~|\.git)' <<<"$CMD" && deny "destructive command; ask the human."
+if grep -Eq 'git[[:space:]]+(tag|push)[^|;&]*(v1-munichtech|g[0-9]-pass|v2-freeze|protocol-v[0-9]|numbers-lock|rc[0-9]+|submission)' <<<"$CMD" && [[ "${DRIFTSENSE_RELEASE:-0}" != "1" ]]; then
+  deny "gate tags are created only by a human via /tag-gate (start claude with DRIFTSENSE_RELEASE=1)."
+fi
+grep -Eq 'pip3?[[:space:]]+install[^|;&]*opencv' <<<"$CMD" && deny "never pip-install opencv ad hoc (and never on COOL hosts); use requirements.lock."
+grep -Eq 'cdk[[:space:]]+destroy|aws[[:space:]].*(delete-bucket|rb[[:space:]])' <<<"$CMD" && deny "destructive AWS command; human only."
+exit 0
+```
+
+`.claude/hooks/pre-commit-tests.sh`
+```bash
+#!/usr/bin/env bash
+# PreToolUse(Bash): run fast tests before any git commit; block on failure.
+set -uo pipefail
+CMD=$(jq -r '.tool_input.command // empty')
+grep -Eq '(^|[;&|[:space:]])git[[:space:]]+commit' <<<"$CMD" || exit 0
+cd "$CLAUDE_PROJECT_DIR" || exit 0
+if ! make -s test-fast >/tmp/driftsense-test-fast.log 2>&1; then
+  tail -n 40 /tmp/driftsense-test-fast.log >&2
+  echo "BLOCKED: 'make test-fast' failed. Fix the failures, then commit." >&2
+  exit 2
+fi
+exit 0
+```
+
+`.claude/hooks/session-start.sh`
+```bash
+#!/usr/bin/env bash
+cd "$CLAUDE_PROJECT_DIR" || exit 0
+git fetch -q origin 2>/dev/null || true
+OWNER=$(git config --get driftsense.owner || echo "UNSET - run: git config driftsense.owner A|B")
+BR=$(git branch --show-current)
+COUNTS=$(git rev-list --left-right --count origin/main...HEAD 2>/dev/null || echo "? ?")
+echo "DriftSense session: owner=Person ${OWNER} branch=${BR} behind_main=${COUNTS%%[[:space:]]*} ahead=${COUNTS##*[[:space:]]}"
+echo "Rules: CLAUDE.md. Start with /sync. Today's schedule: docs/PLAN.md."
+```
+
+`.claude/settings.json`
+```json
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(make *)", "Bash(git status*)", "Bash(git diff*)", "Bash(git log*)", "Bash(git fetch*)",
+      "Bash(git switch*)", "Bash(git add *)", "Bash(git commit *)", "Bash(git rebase *)",
+      "Bash(git push -u origin *)", "Bash(git push --force-with-lease*)", "Bash(git worktree *)",
+      "Bash(gh pr *)", "Bash(gh run *)", "Bash(gh issue *)", "Bash(gh api repos/HUNT-001/DriftSense/*)",
+      "Bash(python -m pytest*)", "Bash(pytest*)", "Bash(ruff *)", "Bash(python scripts/*)"
+    ],
+    "deny": [
+      "Read(./.env)", "Read(./.env.*)", "Read(./eval/sealed/**)", "Read(./data/sealed/**)",
+      "Bash(git push origin main*)", "Bash(git push --force *)", "Bash(cdk destroy*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-start.sh" } ] }
+    ],
+    "PreToolUse": [
+      { "matcher": "Bash", "hooks": [
+        { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-bash.sh" },
+        { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pre-commit-tests.sh", "timeout": 600 }
+      ] },
+      { "matcher": "Edit|Write|MultiEdit", "hooks": [
+        { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-edit.sh" }
+      ] }
+    ]
+  }
+}
+```
+Matching hooks run in parallel, and if any returns deny, deny wins.\[7\]\[18\] Check with `/hooks` in each session. Personal additions (extra allow rules, notification hooks) go in `.claude/settings.local.json`.
+
+**S3 — CI, CODEOWNERS, PR template, Makefile targets**
+```
+On branch shared/p0-bootstrap:
+1. Create .github/workflows/ci.yml exactly as pasted (block "ci.yml"). Job names must stay exactly: "test (ubuntu-24.04)", "test (ubuntu-24.04-arm)", "contracts", "lint", "claims", "lock" — they are required status checks and must be unique across workflows.
+2. Create .github/CODEOWNERS (block "CODEOWNERS") with @PERSON_A_GH / @PERSON_B_GH replaced by the real handles I give you.
+3. Create .github/pull_request_template.md (block "PR template").
+4. Add Makefile targets (keep existing ones, put new ones in "# ---- shared targets ----"): setup, test-fast (pytest -q -m "not slow" -x), test (pytest -q), lint (ruff check . && ruff format --check .), contracts (python -c "from pathlib import Path; from driftsense.contracts import export_schemas; export_schemas(Path('contracts'))"), contracts-check (make contracts && git diff --exit-code contracts/), claims (python scripts/check_claims.py, exit 0 if no docs yet), lock (pip-compile --strip-extras -q -o requirements.lock requirements.in && grep -v '^opencv-python-headless' requirements.lock > requirements-cool.lock), check (lint test contracts-check claims).
+5. Add pydantic>=2.8,<3 and pip-tools to requirements.in (pydantic runtime; pip-tools dev) and run make lock.
+Show me the diff.
+```
+
+`ci.yml`
+```yaml
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip, cache-dependency-path: requirements.lock }
+      - run: python -m pip install -r requirements.lock && python -m pip install -e . --no-deps
+      - run: python -c "import cv2, numpy; assert cv2.__version__.startswith('5.0.0'), cv2.__version__; assert numpy.__version__.startswith('2.'), numpy.__version__; print(cv2.__version__, numpy.__version__)"
+      - run: make test
+  contracts:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip, cache-dependency-path: requirements.lock }
+      - run: python -m pip install -r requirements.lock && python -m pip install -e . --no-deps
+      - run: make contracts-check && python -m pytest -q tests/contract
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install ruff && make lint
+  claims:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip, cache-dependency-path: requirements.lock }
+      - run: python -m pip install -r requirements.lock && python -m pip install -e . --no-deps
+      - run: make claims
+  lock:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install pip-tools && make lock && git diff --exit-code requirements.lock requirements-cool.lock
+```
+
+`CODEOWNERS` (only requests reviews; don't make code-owner review required)
+```
+*                         @PERSON_A_GH @PERSON_B_GH
+/driftsense/              @PERSON_A_GH
+/eval/                    @PERSON_A_GH
+/tests/engine/            @PERSON_A_GH
+/tests/agent/             @PERSON_A_GH
+/service/                 @PERSON_B_GH
+/infra/                   @PERSON_B_GH
+/bench/                   @PERSON_B_GH
+/ui/                      @PERSON_B_GH
+/scripts/                 @PERSON_B_GH
+/docs/                    @PERSON_B_GH
+/docs/REPORT.md           @PERSON_A_GH
+/driftsense/contracts.py  @PERSON_A_GH @PERSON_B_GH
+/driftsense/api.py        @PERSON_A_GH @PERSON_B_GH
+/contracts/               @PERSON_A_GH @PERSON_B_GH
+/requirements*            @PERSON_A_GH @PERSON_B_GH
+/Makefile                 @PERSON_A_GH @PERSON_B_GH
+/CLAUDE.md                @PERSON_A_GH @PERSON_B_GH
+/.claude/                 @PERSON_A_GH @PERSON_B_GH
+/.github/                 @PERSON_A_GH @PERSON_B_GH
+```
+GitHub reads CODEOWNERS from `.github/`, the root or `docs/`, and only from the PR's **base** branch. It does not request reviews on draft PRs. Owners need write access, so add Person B as a collaborator first.\[19\]
+
+`PR template`
+```markdown
+## Summary
+## Phase / gate
+P? · gate G? · branch a/… or b/…
+## Files (owner check)
+- [ ] Only my owned paths, or shared/* branch for shared files
+- [ ] No edits to driftsense/v1, sealed data, lockfiles by hand, results/*.json by hand
+## Tests
+`make check` output (last lines):
+## Gate evidence
+results/*.json files produced + key numbers (rendered, not typed)
+## Contract impact
+none | additive (CONTRACT_VERSION x.y.z) | breaking (needs both approvals)
+## Handoff
+What the other person must know / do next:
+```
+
+**S4 — Contract stubs, fake engine, v1 adapter**
+```
+On shared/p0-bootstrap:
+1. Create driftsense/contracts.py, driftsense/api.py, driftsense/engines/__init__.py, driftsense/engines/fake.py and tests/contract/test_contracts.py with EXACTLY the pasted contents.
+2. Write driftsense/engines/v1_adapter.py: read driftsense/v1 (do NOT modify it) to find the v1 localize entry point and its return type; decode bytes with cv2.imdecode (grayscale), call v1, and map to LocalizeResult (engine="v1", engine_version from v1 or "v1-munichtech", calibrated=False, decision from margin vs tau where tau = budget.tau or 0.10, timings if v1 exposes them). Raise DriftSenseInputError on bad input.
+3. Create driftsense/v2/__init__.py with `from .engine import localize` and driftsense/v2/engine.py whose localize(...) raises NotImplementedError("v2 lands in P2").
+4. Run `make contracts` to write contracts/*.schema.json; run `make check`. All tests green (v2 test skips).
+5. Create docs/PLAN.md containing the day-by-day schedule table I paste.
+6. Commit in logical commits (chore(shared): claude rules+hooks; ci: workflows+codeowners; feat(contracts): v1.0.0 contract, fake + v1 engines). Then /open-pr "chore(shared): P0 bootstrap — rules, CI, contracts v1.0.0" with reviewer @PERSON_B_GH.
+```
+
+**S5 — Rulesets, merge settings, optional Claude PR review (after B approves and S4 merges)**
+```
+Run these with gh as the repo admin, show each response, stop on any error:
+1. gh api -X PATCH repos/HUNT-001/DriftSense -F allow_squash_merge=true -F allow_merge_commit=false -F allow_rebase_merge=false -F delete_branch_on_merge=true -F allow_auto_merge=true
+2. Write .github/rulesets/main.json and .github/rulesets/tags.json (pasted below) on a new branch shared/p0-rulesets, then apply:
+   gh api -X POST repos/HUNT-001/DriftSense/rulesets --input .github/rulesets/main.json
+   gh api -X POST repos/HUNT-001/DriftSense/rulesets --input .github/rulesets/tags.json
+3. gh api repos/HUNT-001/DriftSense/rulesets  → print names + enforcement.
+4. Tell me to verify in Settings → Rules → Rulesets that the 4 required checks resolve to the CI jobs (they must have run once).
+5. Open the PR for the ruleset JSON files (/open-pr).
+```
+`main.json`
+```json
+{
+  "name": "protect-main",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
+  "bypass_actors": [ { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "pull_request" } ],
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    { "type": "required_linear_history" },
+    { "type": "pull_request", "parameters": {
+        "required_approving_review_count": 1,
+        "dismiss_stale_reviews_on_push": true,
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": true,
+        "allowed_merge_methods": ["squash"] } },
+    { "type": "required_status_checks", "parameters": {
+        "strict_required_status_checks_policy": true,
+        "required_status_checks": [
+          { "context": "test (ubuntu-24.04)" }, { "context": "test (ubuntu-24.04-arm)" },
+          { "context": "contracts" }, { "context": "lint" } ] } }
+  ]
+}
+```
+`tags.json`
+```json
+{
+  "name": "protect-gate-tags",
+  "target": "tag",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["refs/tags/v*", "refs/tags/g*-pass", "refs/tags/protocol-*", "refs/tags/numbers-lock*", "refs/tags/rc*", "refs/tags/submission"], "exclude": [] } },
+  "bypass_actors": [ { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" } ],
+  "rules": [ { "type": "deletion" }, { "type": "update" }, { "type": "non_fast_forward" } ]
+}
+```
+Notes:
+- `actor_id: 5` is the built-in Admin repository role. `bypass_mode: "pull_request"` matches GitHub's "For pull requests only" bypass, so even the admin needs a PR.
+- Check the JSON field names against the live REST docs if `gh api` rejects one. The UI equivalents are documented: "Require a pull request before merging", "Require status checks to pass", "Require branches to be up to date", "Require linear history" and allowed merge methods.
+- Optional: in a Claude Code session, run `/install-github-app`. It "works only with github.com repositories", needs repo admin, and installs `anthropics/claude-code-action@v1`.\[20\]\[21\] That gives an automated review comment on every PR. It is extra input; it does not count as the required human approval.
+
+### (b) Person A prompts (engine, accuracy, agent, sealed eval)
+
+Every A prompt follows the same frame. Paste the matching technical body from the earlier 17-prompt plan where it says `<<TECH-NN>>`.
+
+**A1 — P1 profiling + golden baseline (Oct 11–12)** · branch `a/p1-profile`
+```
+You are working for Person A. First run /sync.
+Branch: git switch -c a/p1-profile origin/main
+Goal: profile v1 and produce the golden baseline used by G2.
+Files you OWN for this task: bench/profile is B's — so put the profiler in eval/profile_v1.py; outputs results/accuracy/baseline_v1.json and results/accuracy/profile_v1.json (ResultsFile schema, dataset="dev").
+Do NOT touch: driftsense/v1/ (read only), service/, infra/, bench/, ui/, scripts/, docs/ (except none), any shared file.
+Tasks: <<TECH-02>>. Record per-stage cProfile hot spots, wall time per image pair on this machine, DEV accuracy with bootstrap 95% CI (n, ci_low, ci_high), recall@20. Use driftsense.api.localize(engine="v1") so the numbers go through the contract.
+Tests: tests/engine/test_profile_outputs.py validates both JSON files with ResultsFile.
+Acceptance: make check green; both JSON files validate; PR body lists the baseline numbers by reading the JSON (paste the command output, do not retype).
+Finish: commit (feat(eval): v1 profiling + golden baseline), /open-pr "feat(eval): P1 v1 profile + golden baseline".
+Handoff (PR body): tell B the baseline file paths and the per-call latency budget the service should assume.
+```
+
+**A2 — P2a v2 S0–S2: ingest, lattice, rectify (Oct 12–13)** · `a/p2-s0-s2`
+```
+/sync, then git switch -c a/p2-s0-s2 origin/main.
+Own: driftsense/v2/{ingest,lattice,rectify}.py, driftsense/v2/engine.py, tests/engine/test_v2_s0_s2.py.
+Do NOT touch: driftsense/v1, driftsense/api.py and contracts.py (shared; if the contract seems wrong, STOP and tell me), anything of B's.
+Tasks: <<TECH-03>>. Hot paths must use KleidiCV-listed ops only (GaussianBlur, sepFilter2D, Sobel, erode, dilate, remap, warpPerspective, resize, pyrDown, medianBlur, cvtColor, minMaxIdx); add a test that greps these modules and fails on cv2.matchTemplate / python loops over pixels in hot paths. Apply the NumPy-2 cross-product fix pattern (explicit 2-D determinant) wherever 2-D cross products appear.
+engine.localize may still raise NotImplementedError for later stages but must run S0–S2 when env DRIFTSENSE_V2_PARTIAL=1 (for tests only).
+Tests: unit tests per module on synthetic FinFET/DRAM/grid/staggered lattices (period error < 0.5 px; rectification residual < 0.2 px).
+Acceptance: make check green on both CI arches. /open-pr "feat(v2): S0–S2 ingest, lattice, rectify".
+Handoff: none for B (engine default stays v1).
+```
+
+**A3 — P2b S3–S6: roughness, score, cascade, contour (Oct 14–15)** · `a/p2-s3-s6`
+```
+/sync; git switch -c a/p2-s3-s6 origin/main.
+Own: driftsense/v2/{roughness,score,cascade,contour}.py, tests/engine/test_v2_s3_s6.py.
+Do NOT touch: v1, shared files, B's paths.
+Tasks: <<TECH-04>> (first half: S3/S4/S6 and cascade switch). Cascade activates only when dense recall@20 < 98% on DEV or Mode.DENSE/AUTO margin < tau.
+Tests: roughness fingerprint picks true copy on periodic arrays in ≥ the v1 rate on the DEV subset (pytest -m slow allowed, not in test-fast).
+Acceptance: make check; PR body includes interim speed/accuracy from `make gate-g2 --dry` style script output. /open-pr "feat(v2): S3–S6 roughness, scoring, cascade, contour".
+```
+
+**A4 — P2c S8/S9 + entry point + G2 (Oct 16, PR by 15:00)** · `a/p2-g2`
+```
+/sync; git switch -c a/p2-g2 origin/main.
+Own: driftsense/v2/{subpixel,explain,engine}.py, eval/gate_g2.py, results/accuracy/v2_dev.json, Makefile A section target gate-g2 (Makefile is shared: if the target doesn't exist yet, STOP and ask me to open shared/makefile-gate-g2 first).
+Tasks: <<TECH-05>> plus the G2 part of <<TECH-04>>. driftsense.v2.engine.localize returns a full LocalizeResult (engine="v2", timings for every stage, artifacts heatmap/overlay written under a temp dir or provided out_dir). eval/gate_g2.py writes results/accuracy/g2.json with speedup, DEV accuracy + 95% CI vs baseline_v1.json, recall@20, and a PASS/FAIL per criterion.
+Tests: tests/contract now must pass for engine=v2 (no skip). Run it on this machine for both FinFET and DRAM fixtures.
+Acceptance (G2): speedup ≥10x vs v1 on same machine; v2 DEV accuracy within v1 95% CI; dense recall@20 ≥98% (else cascade enabled and re-measured). Run /gate-check G2 and paste the table.
+Finish: /open-pr "feat(v2): S8/S9, v2 entry point, G2 evidence"; ask B to run /review-pr <n> and /gate-check G2 independently.
+After merge + PASS: human runs /tag-gate g2-pass. Then create int/g2-default-v2 that changes only DEFAULT_ENGINE="v2" in driftsense/api.py; /open-pr.
+Handoff: B swaps worker to v2 (int/g2-v2-swap); note any new runtime deps or env vars.
+```
+
+**A5 — P3a DRAM contour (Oct 15–17)** · `a/p3-dram`
+```
+/sync; git switch -c a/p3-dram origin/main.
+Own: driftsense/v2/contour.py (DRAM path), eval/diagnose_dram.py, results/accuracy/dram_dev.json, tests/engine/test_dram.py.
+Tasks: <<TECH-06>>. Must not change LocalizeResult; DRAM details go into artifacts (kind="contour") and warnings.
+Acceptance: DRAM DEV accuracy improves vs v2 at G2 with CI reported; make check; /open-pr "feat(v2): DRAM contour path".
+```
+
+**A6 — P3b confidence + calibration + freeze (Oct 17–19 12:00)** · `a/p3-confidence`
+```
+/sync; git switch -c a/p3-confidence origin/main.
+Own: driftsense/v2/confidence.py, eval/calibration.py, results/accuracy/calibration.json, tests/engine/test_confidence.py.
+Tasks: <<TECH-07>>. Calibrated tau replaces the default when budget.tau is None; Margin.calibrated=True; p_correct populated. Reliability diagram data in calibration.json for charts.
+Acceptance: Expected calibration error reported with CI; commit precision at tau ≥ the target from the plan; make check; /open-pr "feat(v2): calibrated confidence + tau".
+Freeze: once merged (before Oct 19 12:00), the human runs /tag-gate v2-freeze. After that, engine changes only via fix/* with both approvals.
+Handoff: tell B the calibrated tau value path (results/accuracy/calibration.json) for UI display — B renders it, never retypes.
+```
+
+**A7 — P5a Virtual SEM (Oct 18–19)** · `a/p5-virtual-sem`
+```
+/sync; git switch -c a/p5-virtual-sem origin/main.
+Own: driftsense/sim/instrument.py (VirtualSEM), tests/agent/test_virtual_sem.py, docs/virtual_sem.md.
+Tasks: <<TECH-08>>. VirtualSEM must be deterministic given seed; expose acquire(fov, center_nm), move_stage(dx_nm, dy_nm), with drift/noise models; no engine changes (frozen).
+Acceptance: make check; /open-pr "feat(sim): VirtualSEM digital twin".
+```
+
+**A8 — P5b Agent + MCP + G5 (Oct 19–20, PR by 14:00)** · `a/p5-agent-mcp`
+```
+/sync; git switch -c a/p5-agent-mcp origin/main.
+Own: driftsense/agent/{tools,policy_rules,policy_llm,runner,trace,mcp_server}.py, tests/agent/*, results/agent/g5_episode.json, traces/demo_*.jsonl (small, committed as demo artifacts).
+Tasks: <<TECH-09>>. Every step writes a TraceEvent line (contracts.TraceEvent). The runner commits a stage move only when margin ≥ tau (event kind "commit_move" with because="margin X >= tau Y"); otherwise emits "escalate" with top-3 ApprovalRequest and waits for "human_approval". This trace is the Agentic Vision evidence: OpenCV output (margin) changes the next action.
+policy_llm is optional at runtime (rules policy is default and must work offline).
+Acceptance (G5): an episode on VirtualSEM with ≥1 commit and ≥1 escalation; MCP server smoke test lists tools and runs one localize; make check. /gate-check G5. /open-pr "feat(agent): active-perception agent, trace, MCP (G5)".
+Handoff (issue via /handoff to B): runner entry point, how the service should call it (sync vs async), approval payload = ApprovalDecision, trace upload path convention traces/<run_id>.jsonl → s3 key.
+```
+
+**A9 — P7 protocol then sealed run (Oct 21–22)** · `a/p7-protocol`, `a/p7-sealed-run`
+```
+Part 1 (a/p7-protocol): write eval/protocol.md + eval/protocol.json (metrics, CI method, thresholds, exact commands, engine git SHA = v2-freeze). Compute sha256 of protocol.json; commit; /open-pr. After merge the human runs /tag-gate protocol-v1 with the hash in the tag message.
+Part 2 (a/p7-sealed-run), human present: the human sets DRIFTSENSE_ALLOW_SEALED=1 and creates eval/SEALED_UNLOCK locally (gitignored). You run ONLY: python eval/sealed_run.py --protocol eval/protocol.json once. Never open, list, print or copy sealed files. Then run eval/stats.py, eval/charts.py, eval/failure_gallery.py → results/sealed/*.json, docs assets. Report protocol_sha256 in every results file.
+Acceptance: results validate as ResultsFile with dataset="sealed"; a single run recorded (log run id); /open-pr "eval: sealed evaluation under protocol-v1".
+Handoff: tell B results are final → numbers-lock.
+```
+
+**A10 — P9 report narrative (Oct 24)** · `a/p9-report`
+```
+Own: docs/REPORT.md, docs/PRIOR_WORK.md (templates only; numbers via render_docs placeholders like {{ results.sealed.accuracy.value }} — follow B's template syntax in scripts/render_docs.py).
+Never type a number. Run make docs and make claims. /open-pr "docs: report narrative".
+```
+
+### (c) Person B prompts (cloud, service, COOL bench, UI, docs pipeline)
+
+**B1 — P4a CDK core (Oct 11–12)** · `b/p4-cdk-core`
+```
+You are working for Person B. /sync; git switch -c b/p4-cdk-core origin/main.
+Own: infra/** (AWS CDK v2 Python, ap-south-1), tests/infra/**.
+Do NOT touch: driftsense/**, eval/**, shared files (if you need a dependency, STOP and ask me to open shared/deps-cdk).
+Tasks: <<TECH-11>> first slice: stacks for S3 (UI + artifacts, block public access, SSE), DynamoDB jobs table (PK job_id, TTL), SQS + DLQ (maxReceiveCount 3), HTTP API + arm64 Lambda (placeholder handler), CloudFront+S3 for UI (OAC), no NAT gateways (VPC endpoints for S3/DynamoDB/SQS/SSM), AWS Budgets, IAM least privilege, cdk-nag if available. Synth only; no deploy yet.
+Tests: tests/infra snapshot/assertion tests (no NAT, Lambda arch arm64, IMDSv2 required in later EC2).
+Acceptance: cdk synth clean; make check; /open-pr "feat(infra): CDK core stacks (synth)".
+```
+
+**B2 — P4b Service against the fake engine (Oct 13–14)** · `b/p4-service`
+```
+/sync; git switch -c b/p4-service origin/main.
+Own: service/{api,worker,models,storage}.py, tests/service/**.
+Contract: import ONLY driftsense.api.localize and driftsense.contracts models. service/models.py re-exports JobCreate/JobStatus/ApprovalDecision — do not redefine them.
+Tasks: <<TECH-10>>: FastAPI + Mangum API: POST /v1/jobs (JobCreate → 202 JobStatus queued; idempotent by client_token), GET /v1/jobs/{id} (JobStatus), POST /v1/jobs/{id}/approval (ApprovalDecision), GET /v1/demos, presigned upload URLs. SQS worker: receive, set running, call localize with DRIFTSENSE_ENGINE from env (default "fake" in tests), store LocalizeResult JSON + artifacts in S3, set succeeded/failed with ErrorInfo; WorkerInfo filled from cv2/numpy/platform and IMDSv2 instance type.
+Tests: moto-based tests; contract validation of every response with JobStatus.model_validate; run with DRIFTSENSE_ENGINE=fake and v1.
+Acceptance: make check; /open-pr "feat(service): job API + SQS worker on contract v1".
+```
+
+**B3 — P4c COOL worker + deploy pipeline (Oct 15–17)** · `b/p4-cool-worker`
+```
+/sync; git switch -c b/p4-cool-worker origin/main.
+Own: infra/** (worker stack), .github/workflows/deploy.yml, service/worker bootstrap scripts under infra/assets/.
+Tasks: <<TECH-11>> worker slice: EC2 ASG c8g.large from COOL 3.1 AMI, SSM only (no SSH), IMDSv2 required, worker uses cv2 from /opt/cool/venvs/python_3.12 — install requirements-cool.lock there, NEVER opencv. Deploy workflow: on push to main (paths infra/**, service/**, ui/**) + workflow_dispatch; permissions id-token: write, contents: read; aws-actions/configure-aws-credentials with role-to-assume ${{ vars.AWS_DEPLOY_ROLE_ARN }}, aws-region ap-south-1; cdk deploy --all --require-approval never. Also infra/oidc stack (or README steps) creating the GitHub OIDC provider and the deploy role trusted for repo:HUNT-001/DriftSense:ref:refs/heads/main only.
+Acceptance: deployed dev stack; a fake-engine job succeeds end-to-end; WorkerInfo shows aarch64 + cool=true. /open-pr "feat(infra): COOL worker ASG + OIDC deploy".
+```
+
+**B4 — Docs pipeline early (Oct 14–15)** · `b/p9-docs-pipeline`
+```
+Own: scripts/render_docs.py, scripts/check_claims.py, docs/templates/**, tests/service/test_docs_pipeline.py.
+Tasks: <<TECH-15>> pipeline part: templates with placeholders resolved ONLY from results/**/*.json (validated as ResultsFile); render to docs/*.md; check_claims fails if any digit-bearing claim in docs/*.md lacks a provenance marker or differs from the JSON. Expose template syntax doc for A.
+Acceptance: make docs idempotent; make claims green; /open-pr "feat(docs): render_docs + check_claims pipeline".
+```
+
+**B5 — UI skeleton against fake (Oct 18–20)** · `b/p8-ui-skeleton`
+```
+Own: ui/**.
+Tasks: <<TECH-14>> first slice: static SPA with demo picker, job submit, polling JobStatus, heatmap/overlay display from artifacts, live agent trace viewer reading TraceEvent JSONL (use a committed sample from tests fixtures until A's G5 lands), approval card posting ApprovalDecision. Keyboard navigable, ARIA labels, contrast AA.
+Acceptance: works against the deployed API with DRIFTSENSE_ENGINE=fake; /open-pr.
+```
+
+**B6 — P6 COOL benchmark campaign (Oct 20–22)** · `b/p6-cool-bench`
+```
+Own: bench/**, infra bench stack, results/bench/*.json, docs/COOL_EVIDENCE template.
+Tasks: <<TECH-12>>: bench stack c7i.4xlarge pip / c8g.4xlarge pip / c8g.4xlarge COOL; microbench of KleidiCV-listed ops, stagebench per v2 stage (from LocalizeResult.timings), e2e per job; evidence (cv2.getBuildInformation excerpts, instance metadata) stored as ResultsFile with env.cool. Run at v2-freeze SHA only. Tear down bench instances after each run (human confirms).
+Acceptance: results validate; speedups with CIs; /open-pr "bench: COOL campaign at v2-freeze".
+```
+
+**B7 — UI polish + docs (Oct 21–24)** · `b/p8-ui-polish`, `b/p9-docs`
+```
+UI polish: <<TECH-14>> remainder (a11y audit, empty/error states, approval UX, judge demo mode).
+Docs: ARCHITECTURE.md with 3 Mermaid diagrams (system/AWS; engine stages; agent loop with commit vs escalate), COOL_EVIDENCE.md, SUBMISSION.md (Devpost checklist), RESPONSIBLE_USE.md. Numbers only via render_docs. make docs && make claims; /open-pr each.
+```
+
+### (d) PR review prompts
+
+**R-A (A reviews B's PR) and R-B (B reviews A's PR)**: run `/review-pr <number>`. It contains the procedure below, the same for both people. Add this focus line:
+- A reviewing B: "Focus: contract usage only via driftsense.api/contracts; no redefined models; COOL never pip-installs opencv; IAM least privilege; no secrets; IMDSv2; no NAT; costs."
+- B reviewing A: "Focus: contract unchanged or properly versioned; tests for every stage; KleidiCV op rule in hot paths; results produced by scripts; gate evidence reproducible on my machine; arm64 CI green."
+
+### (e) Integration prompts at sync points
+
+**I-G2 (Oct 16–17, Person B)** · `int/g2-v2-swap`
+```
+/sync. Preconditions: tag g2-pass exists and DEFAULT_ENGINE="v2" is on main (git log -1 -- driftsense/api.py). If not, STOP.
+git switch -c int/g2-v2-swap origin/main.
+1. Run tests/contract and tests/service with DRIFTSENSE_ENGINE=v2 locally; then on the deployed dev stack submit demo jobs for FinFET, DRAM, grid, staggered; record JobStatus JSON (worker.cool, arch, total_ms) into results/bench/g2_swap_smoke.json via a bench script (never by hand).
+2. Set worker env DRIFTSENSE_ENGINE=v2 in infra; keep a one-line rollback (env back to v1).
+3. Any engine bug → /handoff to A with failing input id and JobStatus; do NOT patch driftsense/.
+/open-pr "int: switch service to v2 engine (G2)".
+```
+
+**I-Freeze (Oct 19 11:30, both)**
+```
+Person A session: /sync; confirm a/p3-confidence merged; run make check and make gate-g2 on main; if green, ask the human to run /tag-gate v2-freeze.
+Person B session: /sync; record `git rev-parse v2-freeze` in infra worker config as ENGINE_GIT_SHA; bench runs only at this SHA.
+```
+
+**I-G5 (Oct 20–21, Person B)** · `int/g5-agent-service`
+```
+Preconditions: g5-pass tag; A's handoff issue open. git switch -c int/g5-agent-service origin/main.
+Add POST /v1/agent/episodes (demo_id, seed) → job with agent=true; worker runs driftsense.agent.runner with VirtualSEM, streams TraceEvent lines to S3 traces/<run_id>.jsonl, sets status awaiting_approval with ApprovalRequest when the agent escalates; POST approval resumes. UI trace viewer reads the real trace. Close A's handoff issue in the PR body ("Closes #N").
+```
+
+**I-Numbers lock (Oct 23, Person B, A approves)** · `docs/numbers-lock`
+```
+/sync. Verify every results/**/*.json validates and every sealed file has protocol_sha256 equal to the protocol-v1 tag message. Run make docs && make claims && make check. Open PR; after A's approval and merge, human runs /tag-gate numbers-lock.
+```
+
+### (f) Conflict-resolution prompt (`/resolve-conflict`, used by both)
+
+```markdown
+---
+description: Resolve a rebase/merge conflict safely according to DriftSense ownership rules
+allowed-tools: Bash(git *), Bash(make *), Read, Edit
+---
+Current state: !`git status --short`
+Conflicted files: !`git diff --name-only --diff-filter=U`
+
+Rules:
+1. For each conflicted file, look up its owner in .claude/ownership.txt and my owner via `git config driftsense.owner`.
+2. requirements*.lock: `git checkout --ours <file>` (during rebase "ours" = origin/main), re-apply my requirements.in change, `make lock`, `git add`. Never hand-merge.
+3. contracts/*.schema.json: resolve driftsense/contracts.py first, then `make contracts` to regenerate schemas.
+4. results/*.json or rendered docs/*.md: take origin/main's version and regenerate by rerunning the script; never hand-merge numbers.
+5. Files owned by the OTHER person: take origin/main's version (`git checkout --ours <file>`) and drop my change; then tell me to open /handoff for it.
+6. Files I own or shared files where I'm steward: merge both intents by hand; explain each hunk decision to me before `git add`.
+7. Shared files where the other person is steward: STOP and show me both sides; I will ask the steward.
+8. After all files: `git rebase --continue`, then `make check`. If checks fail, fix in a new commit. Push with --force-with-lease.
+Summarise every decision in a list I can paste into the PR body.
+```
+
+### (g) Final verifier prompts
+
+**X-A / X-B — cross-verification (Oct 25).** Each person, on their own machine, runs this in a **new** session with `/clear` and no earlier context, in a separate worktree (`git worktree add ../ds-verify origin/main`):
+```
+You are an independent verifier. You did not write this code. Use the verifier subagent.
+Scope: the OTHER person's area per .claude/ownership.txt (A verifies B: service/, infra/, bench/, ui/, scripts/, docs pipeline; B verifies A: driftsense/v2, sim, agent, eval, results/accuracy|sealed|agent).
+Checks: (1) fresh venv from requirements.lock, make check green; (2) every claim in docs/*.md traceable to results JSON (make claims) and each results file reproducible from its produced_by script at its git_sha (rerun a sample, compare within CI); (3) contract tests pass for the engine in use; (4) for A's area: rerun make gate-g2 and the agent G5 episode; for B's: call the live endpoint, submit 4 demo jobs + 1 agent episode, confirm worker.cool=true and arm64, check CloudWatch dashboard and canary, check no NAT and IMDSv2 via aws cli read-only calls.
+Output: a table of PASS/FAIL with evidence commands and outputs; file each FAIL as an issue with label verify and owner assignee (gh issue create). Do not fix anything yourself.
+```
+
+**V1–V3 — fresh judge dry run (Oct 26, from 09:00).** Use a third clean clone: a new directory, a new venv and a new Claude Code session, preferably on whichever machine has the most battery and bandwidth. The task says this kind of high-stakes work should be checked by "a separate agent that hasn't seen the work", so this session sees only the repo.
+```
+V1 (setup): git clone https://github.com/HUNT-001/DriftSense ds-judge && cd ds-judge && git checkout rc1 (or the latest rc). Follow README exactly as a judge would; time each step; any step that needs knowledge not in README is a FAIL.
+V2 (evidence): run the README demo locally with DRIFTSENSE_ENGINE=v2; open the deployed UI URL from docs/SUBMISSION.md; run one agent episode and confirm the trace shows commit (margin >= tau) and escalation with an approval card; confirm COOL evidence page matches results/bench; run make claims; verify Devpost requirements list in docs/SUBMISSION.md: OpenCV 5 usage, AWS component, architecture diagram showing OpenCV 5/AWS/COOL/agent components, measurable evaluation, limitations + responsible use, video, repo link.
+V3 (verdict): output GO / NO-GO with blocker list. Only blockers become fix/* PRs (both approve). When GO: human runs /tag-gate submission on the verified SHA; then submit Devpost by 21:00 IST and screenshot confirmation.
+```
+
+### Slash commands and subagents (exact files)
+
+`.claude/commands/sync.md`
+```markdown
+---
+description: Start-of-session sync — fetch, rebase my branch on origin/main, fast tests, report
+allowed-tools: Bash(git *), Bash(make *), Bash(gh *)
+---
+Owner: !`git config --get driftsense.owner`
+Branch: !`git branch --show-current`
+Status: !`git status -sb | head -5`
+
+1. `git fetch origin --prune`.
+2. If on main: `git pull --ff-only` and tell me to create today's branch from docs/PLAN.md. If on my branch with a clean tree: `git rebase origin/main`; on conflict run the /resolve-conflict procedure.
+3. `make test-fast`.
+4. If the branch has an upstream: `git push --force-with-lease`.
+5. Report: behind/ahead counts; test result; `gh pr list --search "review-requested:@me" --state open`; `gh issue list --label handoff --assignee @me`; shared-file changes merged in the last 24h: `git log --since="24 hours ago" --oneline origin/main -- driftsense/contracts.py driftsense/api.py contracts/ requirements.in Makefile pyproject.toml CLAUDE.md .claude/ .github/`; and today's row of docs/PLAN.md for my owner.
+```
+
+`.claude/commands/open-pr.md`
+```markdown
+---
+description: Validate and open a PR for the current branch (arg = PR title)
+allowed-tools: Bash(git *), Bash(make *), Bash(gh *)
+---
+Branch: !`git branch --show-current`
+1. Branch must match ^(a|b)/p[0-9]+-|^(shared|int|fix|docs)/ — else stop.
+2. `git fetch origin && git rebase origin/main`; `make check` must pass.
+3. Verify changed files obey .claude/ownership.txt for my owner (`git diff --name-only origin/main...HEAD`); list any violations and stop.
+4. `git push -u origin HEAD`.
+5. Fill .github/pull_request_template.md from the actual diff and command outputs (numbers copied from command output, never invented) into /tmp/pr-body.md.
+6. `gh pr create --base main --title "$ARGUMENTS" --body-file /tmp/pr-body.md --reviewer <the other person's handle from CLAUDE.local.md>`.
+7. `gh pr merge --auto --squash` (merges only after approval + green checks). Print the PR URL.
+```
+
+`.claude/commands/review-pr.md`
+```markdown
+---
+description: Review the teammate's PR (arg = PR number); draft only, human submits
+allowed-tools: Bash(git *), Bash(gh *), Bash(make *), Read, Grep, Glob
+---
+PR: !`gh pr view $ARGUMENTS --json title,author,headRefName,files,statusCheckRollup --jq '{title,author:.author.login,branch:.headRefName,files:[.files[].path]}'`
+1. `git worktree add ../ds-review-$ARGUMENTS origin/main 2>/dev/null || true`, cd there, `gh pr checkout $ARGUMENTS`.
+2. Read `gh pr diff $ARGUMENTS`. Check: ownership (.claude/ownership.txt), contract changes (CONTRACT_VERSION bumped, schemas regenerated, additive), hand-edited lockfiles/results, numbers typed into docs, secrets, tests added for new behaviour, KleidiCV op rule in engine hot paths, COOL opencv rule in infra.
+3. Run `make check` in the worktree; for gate PRs also run the gate target.
+4. Draft a review: verdict (approve / request changes), blocking items with file:line, non-blocking nits. Show it to me. ONLY after I reply "submit", run `gh pr review $ARGUMENTS --approve --body-file /tmp/review.md` or `--request-changes`.
+5. `git worktree remove ../ds-review-$ARGUMENTS`.
+```
+
+`.claude/commands/gate-check.md`
+```markdown
+---
+description: Evaluate a gate (arg = G2|G4|G5|LOCK|RC) from generated results only
+allowed-tools: Bash(make *), Bash(python *), Bash(git *), Read
+---
+Run `make gate-$(echo $ARGUMENTS | tr 'A-Z' 'a-z')` if it exists, else the matching eval/ or bench/ script. Read only results/**/*.json produced now. Print a table: criterion | threshold | measured (copied from JSON) | PASS/FAIL | evidence file. Never edit results. If any FAIL, list the smallest next action and its owner.
+```
+
+`.claude/commands/handoff.md`
+```markdown
+---
+description: Hand a request to the teammate as a GitHub issue (arg = short title)
+allowed-tools: Bash(gh *), Bash(git *)
+---
+Create `gh issue create --title "handoff: $ARGUMENTS" --label handoff --assignee <teammate handle from CLAUDE.local.md> --body-file /tmp/handoff.md` where the body has: Context (branch, commit), What I need, Files involved (owned by teammate), Contract impact, Deadline (gate/date from docs/PLAN.md), How to verify. Print the issue URL.
+```
+
+`.claude/commands/tag-gate.md`
+```markdown
+---
+description: HUMAN ONLY — create an annotated gate tag (arg = tag name). Requires DRIFTSENSE_RELEASE=1.
+allowed-tools: Bash(git *), Bash(gh *), Bash(make *)
+---
+1. Refuse unless env DRIFTSENSE_RELEASE=1 (`echo $DRIFTSENSE_RELEASE`).
+2. `git fetch origin && git switch --detach origin/main`; `make check`; show `gh run list --branch main --limit 3`.
+3. Ask me to confirm tag name, SHA and message (include gate evidence file paths and, for protocol-v1, the sha256).
+4. `git tag -a $ARGUMENTS -m "<message>" && git push origin $ARGUMENTS`.
+```
+
+`.claude/agents/verifier.md`
+```markdown
+---
+name: verifier
+description: Independent, read-only verifier for gates, cross-review and the final judge dry run. Use when asked to verify, audit or dry-run.
+tools: Read, Grep, Glob, Bash
+---
+You verify; you never fix. You have not seen how this work was produced and must not assume intent. For every claim, find the command that proves it, run it, and quote its output. Treat missing evidence as FAIL. Never read sealed data, .env files or credentials. Output a PASS/FAIL table with evidence, then a GO/NO-GO line.
+```
+
+How this maps to Claude Code features:
+- `.claude/agents/` holds project subagents defined as Markdown with frontmatter (`name`, `description`, `tools`).
+- `claude -c` / `claude --resume` continue a session the next morning on the same machine.
+- `claude --worktree <name>` creates `.claude/worktrees/<name>` on a branch named `worktree-<name>`, branched from `origin/HEAD`.\[22\]\[23\] Use it only for parallel throwaway work on one machine, and rename the branch to the `a/`/`b/` convention before pushing.
+- Headless runs (`claude -p "…" --output-format json --allowedTools "Read,Grep,Bash(make *)" --max-turns 10`) are handy for unattended nightly gate checks.
+
+---
+
+## Recommendations
+
+1. **Today (Oct 11), in this order:** add B as a collaborator → A runs S1–S4 → B reviews and approves → merge → A runs S5 (rulesets) → each person sets `git config driftsense.owner` and `CLAUDE.local.md` and runs `/hooks` to confirm the three hooks loaded. Test the guards on purpose: ask Claude to "edit driftsense/v1/x.py" and to "git push origin main". Both must be blocked.
+2. **Treat G2 (Oct 16) as the only real integration risk.** Everything B builds before then runs on `fake`/`v1` through the same contract, so the swap is one environment variable plus one line in `api.py`. If G2 fails, keep `DEFAULT_ENGINE="v1"`, enable cascade, and re-gate by Oct 17 21:00. Don't hold back B's merges while you do.
+3. **Merge at least once a day per person.** Use draft PRs for work in progress and squash-merge small slices. If a branch is getting large, merge part of it behind the engine flag.
+4. **Keep the two Claude Codes out of each other's lanes deterministically** (hooks plus the ownership file), and route all cross-lane needs through `/handoff` issues. Don't rely on prose instructions alone.
+5. **Protect the sealed evaluation's credibility.** Data lives off-repo in S3, the protocol is tagged before the run, there is exactly one sealed run, and every results file carries `protocol_sha256`.
+6. **Submit early.** Target 21:00 IST Oct 26 from the `submission` tag. The official cutoff is 12:29 IST Oct 27; treat your 12:15 as the hard stop.
+
+## Caveats
+
+- **Things I could not fully verify:**
+  - The exact REST field names in the ruleset JSON (`allowed_merge_methods`, `require_last_push_approval`, actor ID 5 = Admin) come from GitHub's API conventions, not a page I read in full. If `gh api` rejects a field, set the same options in the UI.
+  - The code-owner deadlock described in Key Findings #2 is inferred from GitHub's rule that authors can't approve their own PRs.
+  - The `"if": "Bash(git commit *)"` hook filter exists in Claude Code releases from March 2026 onward. The scripts above check the command themselves instead, so they work on older versions too.
+- **Claude Code features change quickly.** Custom commands in `.claude/commands/` are officially "legacy" but supported.\[12\] Run `/memory`, `/hooks` and `/context` on both machines to confirm what loaded, and keep both machines on the same Claude Code version (`claude update`).
+- **Reviews by the Claude GitHub app are advisory.** The required approval must come from the other human's account. Claude only drafts it, and the human submits it.
+- **pip-compile output can vary by platform.** Lock only on Linux, Python 3.12, through `make lock`; the CI `lock` job catches drift. If cross-arch resolution ever differs, generate the lock in CI and commit it from there.
+- **Arm64 CI capacity:** GitHub's Jan 16, 2025 changelog describes the free public-repo arm64 runners as "4 vCPU runners" on Cobalt 100 processors, and the runner reference lists 4 CPU, 16 GB RAM and 14 GB SSD. That changelog warned that "while the arm64 runners are in public preview, you may experience longer queue times during peak usage hours". The runners became generally available on Aug 7, 2025, so the warning is out of date, but arm64 checks may still queue longer than amd64 near deadlines.
+- **The technical bodies (`<<TECH-NN>>`) come from the earlier 17-prompt plan and were not re-checked here.** This report re-splits them by person and wraps them in Git and ownership rules.
+
+## Sources
+
+1. [GitHub - HUNT-001/DriftSense: Drift-Sense — Physics-aware localization of semiconductor inspection patterns using LER fingerprints and robust image matching.](https://github.com/HUNT-001/DriftSense)
+2. [about rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets)
+3. [GitHub-hosted runners reference - GitHub Enterprise Cloud Docs](https://docs.github.com/en/enterprise-cloud@latest/actions/reference/runners/github-hosted-runners)
+4. [available rules for rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets)
+5. [How Claude remembers your project - Claude Code Docs](https://code.claude.com/docs/en/memory)
+6. [The CLAUDE.md Memory System - Tutorial](https://institute.sfeir.com/en/claude-code/claude-code-memory-system-claude-md/tutorial/)
+7. [Automate actions with hooks - Claude Code Docs](https://code.claude.com/docs/en/hooks-guide)
+8. [Configure permissions - Claude Code Docs](https://code.claude.com/docs/en/permissions)
+9. [Claude Code settings.json: Permissions, Allow and Deny Lists Explained](https://academy.zenva.com/claude-code-settings-json-permissions/)
+10. [Settings files and precedence - Claude Code Docs](https://code.claude.com/docs/en/settings)
+11. [Slash Commands in the SDK - Claude API Docs](https://platform.claude.com/docs/en/agent-sdk/slash-commands)
+12. [Claude Code Custom Slash Commands: The Complete Guide](https://qaskills.sh/blog/claude-code-custom-slash-commands-guide)
+13. [OpenCV AI Competition 2026](https://eventopia.in/event/opencv-ai-competition-2026)
+14. [OpenCV AI Competition 2026, powered by AWS: Build vision systems that see, reason, and act with OpenCV 5 and Amazon Web Services (AWS). Win money and bragging rights! - Devpost](https://opencv26.devpost.com/)
+15. [OpenCV AI Competition 2026, powered by AWS](https://internshala.com/competitions/opencv-ai-competition-2026-powered-by-aws/)
+16. [GitHub - archipelagoing/AWSOpenCVAICompetition2026: https://opencv26.devpost.com/?ref\_content=default&ref\_feature=challenge&ref\_medium=portfolio&\_gl=1\*avekbx\*\_gcl\_au\*MTY0MDUyMTcxNS4xNzg5Njc5ODk1\*\_ga\*MTk2NDQ0NDU4Ny4xNzg5Njc5OTU5\*\_ga\_0YHJK3Y10M\*czE3OTA4ODMyOTEkbzEwJGcxJHQxNzkwODgzNDAwJGo2MCRsMCRoMA.. · GitHub](https://github.com/archipelagoing/AWSOpenCVAICompetition2026)
+17. [GitHub - aws-actions/configure-aws-credentials: Configure AWS credential environment variables for use in other GitHub Actions. · GitHub](https://github.com/aws-actions/configure-aws-credentials)
+18. [Hooks reference - Claude Code Docs](https://code.claude.com/docs/en/hooks)
+19. [About code owners - GitHub Enterprise Cloud Docs](https://docs.github.com/en/enterprise-cloud@latest/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners)
+20. [Claude Code GitHub Actions - Claude Code Docs](https://code.claude.com/docs/en/github-actions)
+21. [GitHub - anthropics/claude-code-action · GitHub](https://github.com/anthropics/claude-code-action)
+22. [Parallel Claude Code Sessions with Git Worktrees — AgentsCamp](https://agentscamp.com/guides/advanced/parallel-claude-code-worktrees)
+23. [Claude Code Desktop Guide: Worktrees, Parallel Sessions, Diffs](https://ccleaks.com/news/claude-code-desktop-redesign)
