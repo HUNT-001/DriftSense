@@ -1,0 +1,157 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "args": {
+      "additionalProperties": true,
+      "title": "Args",
+      "type": "object"
+    },
+    "because": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Human-readable reason, e.g. 'margin 0.31 >= tau 0.22'",
+      "title": "Because"
+    },
+    "kind": {
+      "enum": [
+        "observe",
+        "tool_call",
+        "tool_result",
+        "decision",
+        "commit_move",
+        "escalate",
+        "human_approval",
+        "error",
+        "episode_end"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "latency_ms": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Latency Ms"
+    },
+    "margin": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Margin"
+    },
+    "policy": {
+      "anyOf": [
+        {
+          "enum": [
+            "rules",
+            "llm"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Policy"
+    },
+    "result_summary": {
+      "additionalProperties": true,
+      "title": "Result Summary",
+      "type": "object"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "stage_move_nm": {
+      "anyOf": [
+        {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Stage Move Nm"
+    },
+    "step": {
+      "minimum": 0,
+      "title": "Step",
+      "type": "integer"
+    },
+    "tau": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tau"
+    },
+    "tool": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tool"
+    },
+    "ts": {
+      "format": "date-time",
+      "title": "Ts",
+      "type": "string"
+    },
+    "v": {
+      "const": "1",
+      "default": "1",
+      "title": "V",
+      "type": "string"
+    }
+  },
+  "required": [
+    "run_id",
+    "step",
+    "ts",
+    "kind"
+  ],
+  "title": "TraceEvent",
+  "type": "object"
+}

@@ -1,0 +1,20 @@
+*                         @HUNT-001 @Premchand006
+/driftsense/              @HUNT-001
+/eval/                    @HUNT-001
+/tests/engine/            @HUNT-001
+/tests/agent/             @HUNT-001
+/service/                 @Premchand006
+/infra/                   @Premchand006
+/bench/                   @Premchand006
+/ui/                      @Premchand006
+/scripts/                 @Premchand006
+/docs/                    @Premchand006
+/docs/REPORT.md           @HUNT-001
+/driftsense/contracts.py  @HUNT-001 @Premchand006
+/driftsense/api.py        @HUNT-001 @Premchand006
+/contracts/               @HUNT-001 @Premchand006
+/requirements*            @HUNT-001 @Premchand006
+/Makefile                 @HUNT-001 @Premchand006
+/CLAUDE.md                @HUNT-001 @Premchand006
+/.claude/                 @HUNT-001 @Premchand006
+/.github/                 @HUNT-001 @Premchand006

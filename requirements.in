@@ -1,0 +1,12 @@
+# DriftSense Pilot runtime (source of truth; `make lock` -> requirements.lock)
+# OpenCV 5 + NumPy 2 is the competition stack. No torch.
+opencv-python-headless==5.0.0.93
+numpy>=2,<3
+scipy>=1.13
+Pillow>=10
+matplotlib>=3.8
+tqdm>=4.66
+pydantic>=2.8,<3
+# dev tooling (kept in lock so both machines resolve identically)
+pip-tools
+pytest>=8

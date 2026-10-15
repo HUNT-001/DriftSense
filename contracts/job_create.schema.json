@@ -1,0 +1,119 @@
+{
+  "$defs": {
+    "Budget": {
+      "additionalProperties": false,
+      "properties": {
+        "max_candidates": {
+          "default": 20,
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Max Candidates",
+          "type": "integer"
+        },
+        "max_ms": {
+          "default": 2000,
+          "description": "Soft wall-clock budget for one localize call",
+          "minimum": 1,
+          "title": "Max Ms",
+          "type": "integer"
+        },
+        "tau": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Override calibrated uniqueness-margin threshold; None = calibrated",
+          "title": "Tau"
+        }
+      },
+      "title": "Budget",
+      "type": "object"
+    },
+    "Mode": {
+      "enum": [
+        "fast",
+        "accurate",
+        "dense",
+        "auto"
+      ],
+      "title": "Mode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "agent": {
+      "default": false,
+      "title": "Agent",
+      "type": "boolean"
+    },
+    "budget": {
+      "$ref": "#/$defs/Budget",
+      "default": {
+        "max_candidates": 20,
+        "max_ms": 2000,
+        "tau": null
+      }
+    },
+    "client_token": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Idempotency key",
+      "title": "Client Token"
+    },
+    "demo_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Demo Id"
+    },
+    "mode": {
+      "$ref": "#/$defs/Mode",
+      "default": "auto"
+    },
+    "search_key": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Search Key"
+    },
+    "template_key": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Template Key"
+    }
+  },
+  "title": "JobCreate",
+  "type": "object"
+}

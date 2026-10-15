@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "driftsense"
+version = "2.0.0"
+description = "DriftSense Pilot — OpenCV 5 + AWS active-perception localization engine"
+requires-python = ">=3.12"
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.in"] }
+
+[tool.setuptools.packages.find]
+include = ["driftsense*"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+extend-exclude = ["data_gen", "localization", "experiments", "demo", "outputs",
+                  "config.py", "stage2_config.py",
+                  "tests/test_datagen.py", "tests/test_lattice_fit.py", "tests/test_ler_fingerprint.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501", "UP042"]
+
+[tool.pytest.ini_options]
+markers = ["slow: slower tests excluded from test-fast"]
+testpaths = ["tests"]
+addopts = "--ignore=tests/test_datagen.py --ignore=tests/test_lattice_fit.py --ignore=tests/test_ler_fingerprint.py"
