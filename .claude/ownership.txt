@@ -13,6 +13,11 @@ Makefile                     shared
 .gitignore                   shared
 .github/workflows/deploy.yml B
 .github/*                    shared
+localization/*               A
+experiments/*                A
+data_gen/*                   A
+config.py                    A
+stage2_config.py             A
 driftsense/*                 A
 eval/*                       A
 tests/engine/*               A

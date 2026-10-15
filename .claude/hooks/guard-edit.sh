@@ -12,6 +12,7 @@ deny() { echo "BLOCKED (DriftSense guard-edit): $1" >&2; exit 2; }
 
 case "$REL" in
   driftsense/v1/*)            deny "driftsense/v1 is the frozen golden reference (v1-munichtech).";;
+  localization/*|experiments/*|data_gen/*|config.py|stage2_config.py) deny "frozen v1 reference (v1-munichtech) — localization/, experiments/, data_gen/, config.py, stage2_config.py are read-only.";;
   eval/sealed/*|data/sealed/*|*SEALED_UNLOCK*) deny "sealed data/unlock files are never touched by an agent.";;
   requirements*.lock)         deny "lockfiles are generated: edit requirements.in and run 'make lock'.";;
   results/*.json|results/*/*.json) deny "results are generated: rerun the producing script.";;
