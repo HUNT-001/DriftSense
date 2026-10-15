@@ -5,6 +5,7 @@ v1 entry point (do NOT modify v1):
     with pred_x/pred_y = CENTRE coords and candidates ranked best-first.
 The contract Offset is the template TOP-LEFT, so we convert.
 """
+
 from __future__ import annotations
 
 import time
@@ -13,8 +14,16 @@ from math import isfinite
 import cv2
 import numpy as np
 
-from driftsense.contracts import (Budget, Candidate, DriftSenseInputError,
-                                   LocalizeResult, Margin, Mode, Offset, StageTiming)
+from driftsense.contracts import (
+    Budget,
+    Candidate,
+    DriftSenseInputError,
+    LocalizeResult,
+    Margin,
+    Mode,
+    Offset,
+    StageTiming,
+)
 
 V1_VERSION = "v1-munichtech"
 
@@ -54,20 +63,28 @@ def localize(template_bytes: bytes, search_bytes: bytes, mode: Mode, budget: Bud
     cands: list[Candidate] = []
     for i, c in enumerate(raw):
         cx, cy = float(c.x), float(c.y)  # v1 centre coords
-        cands.append(Candidate(
-            rank=i + 1,
-            x_px=cx - rw / 2.0,
-            y_px=cy - rh / 2.0,
-            score=_score(c),
-            lattice_score=(float(c.ncc) if isfinite(float(getattr(c, "ncc", float("nan")))) else None),
-            roughness_score=(float(c.fp) if isfinite(float(getattr(c, "fp", float("nan")))) else None),
-        ))
+        cands.append(
+            Candidate(
+                rank=i + 1,
+                x_px=cx - rw / 2.0,
+                y_px=cy - rh / 2.0,
+                score=_score(c),
+                lattice_score=(float(c.ncc) if isfinite(float(getattr(c, "ncc", float("nan")))) else None),
+                roughness_score=(float(c.fp) if isfinite(float(getattr(c, "fp", float("nan")))) else None),
+            )
+        )
 
     if not cands:  # v1 returned nothing usable (e.g. empty score map)
-        cands = [Candidate(rank=1,
-                           x_px=float(res.pred_x) - rw / 2.0,
-                           y_px=float(res.pred_y) - rh / 2.0,
-                           score=float(getattr(res, "score", 0.0)) if isfinite(float(getattr(res, "score", float("nan")))) else 0.0)]
+        cands = [
+            Candidate(
+                rank=1,
+                x_px=float(res.pred_x) - rw / 2.0,
+                y_px=float(res.pred_y) - rh / 2.0,
+                score=float(getattr(res, "score", 0.0))
+                if isfinite(float(getattr(res, "score", float("nan"))))
+                else 0.0,
+            )
+        ]
 
     margin = cands[0].score - (cands[1].score if len(cands) > 1 else cands[0].score - 1.0)
     tau = budget.tau if budget.tau is not None else 0.10
@@ -77,8 +94,12 @@ def localize(template_bytes: bytes, search_bytes: bytes, mode: Mode, budget: Bud
         mode=mode,
         offset=Offset(x_px=cands[0].x_px, y_px=cands[0].y_px),
         candidates=cands,
-        margin=Margin(margin=float(margin), tau=float(tau), calibrated=False,
-                      decision="commit" if margin >= tau else "escalate"),
+        margin=Margin(
+            margin=float(margin),
+            tau=float(tau),
+            calibrated=False,
+            decision="commit" if margin >= tau else "escalate",
+        ),
         timings=[StageTiming(stage="v1_total", ms=total_ms)],
         total_ms=total_ms,
         warnings=["v1 adapter: margin/tau uncalibrated; offset converted centre->top-left"],
