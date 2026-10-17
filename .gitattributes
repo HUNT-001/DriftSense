@@ -1,0 +1,4 @@
+# Keep hook scripts and ownership table LF on every checkout (Windows autocrlf-safe).
+# CRLF breaks bash `read`/`case` parsing in the guard hooks.
+*.sh text eol=lf
+.claude/ownership.txt text eol=lf

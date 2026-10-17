@@ -1,0 +1,8 @@
+{
+  "name": "protect-gate-tags",
+  "target": "tag",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["refs/tags/v*", "refs/tags/g*-pass", "refs/tags/protocol-*", "refs/tags/numbers-lock*", "refs/tags/rc*", "refs/tags/submission"], "exclude": [] } },
+  "bypass_actors": [ { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" } ],
+  "rules": [ { "type": "deletion" }, { "type": "update" }, { "type": "non_fast_forward" } ]
+}
