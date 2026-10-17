@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 # PreToolUse(Bash): git safety rails.
 set -uo pipefail
-INPUT=$(cat)
-CMD=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')
-BRANCH=$(git -C "$CLAUDE_PROJECT_DIR" branch --show-current 2>/dev/null || echo "")
 deny() { echo "BLOCKED (DriftSense guard-bash): $1" >&2; exit 2; }
+INPUT=$(cat)
+# jq-free, fail-closed: resolve a Python interpreter (python, then python3); DENY if none.
+PY=""
+for c in python python3; do command -v "$c" >/dev/null 2>&1 && { PY="$c"; break; }; done
+[[ -z "$PY" ]] && deny "no python interpreter found; cannot parse hook input (fail-closed)."
+CMD=$(printf '%s' "$INPUT" | "$PY" -c "import sys,json; d=json.load(sys.stdin); print((d.get('tool_input') or {}).get('command') or '')" 2>/dev/null)
+rc=$?
+[[ $rc -ne 0 ]] && deny "could not parse hook JSON input (fail-closed)."
+BRANCH=$(git -C "$CLAUDE_PROJECT_DIR" branch --show-current 2>/dev/null || echo "")
 
 if [[ "$BRANCH" == "main" ]] && grep -Eq '(^|[;&|[:space:]])git[[:space:]]+(commit|merge|cherry-pick|rebase)' <<<"$CMD"; then
   deny "never commit/merge on main. git switch -c <a|b>/p<N>-<topic> origin/main"
