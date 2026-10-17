@@ -1,0 +1,153 @@
+{
+  "schema_id": "driftsense.results/1",
+  "name": "profile_v1",
+  "produced_by": "eval/profile_v1.py",
+  "git_sha": "7c708c4a1ef181967ec053cf204810905ed1dadc",
+  "created_at": "2026-10-17T19:15:55.465308Z",
+  "dataset": "dev",
+  "env": {
+    "python": "3.13.5",
+    "opencv": "4.12.0",
+    "numpy": "2.3.5",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "arch": "AMD64",
+    "instance_type": null,
+    "cool": false
+  },
+  "metrics": {
+    "matchtemplate_ms": {
+      "value": 22.7413375,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 16
+    },
+    "fingerprint_ms": {
+      "value": 125.89660625000002,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 16
+    },
+    "profiled_pairs_wall_ms": {
+      "value": 2769.355900003575,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 16
+    },
+    "latency_per_pair_ms": {
+      "value": 125.91022687392979,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 160
+    },
+    "hot.00.api.py:localize": {
+      "value": 173.0672875,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 16
+    },
+    "hot.01.v1_adapter.py:localize": {
+      "value": 172.82397500000002,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 16
+    },
+    "hot.02.ler_localizer.py:localize": {
+      "value": 163.12315625000002,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 16
+    },
+    "hot.03.ler_fingerprint.py:extract_fingerprint": {
+      "value": 125.89660625000002,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 656
+    },
+    "hot.04.ler_fingerprint.py:extract_axis_fingerprint": {
+      "value": 111.98727500000001,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 1312
+    },
+    "hot.05._function_base_impl.py:percentile": {
+      "value": 59.456843750000004,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 4739
+    },
+    "hot.06._function_base_impl.py:_quantile_unchecked": {
+      "value": 55.5877125,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 4739
+    },
+    "hot.07._function_base_impl.py:_ureduce": {
+      "value": 54.938612500000005,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 4739
+    },
+    "hot.08._function_base_impl.py:_quantile_ureduce_func": {
+      "value": 49.831193750000004,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 4739
+    },
+    "hot.09._function_base_impl.py:_quantile": {
+      "value": 48.18525625,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 4739
+    },
+    "hot.10.ler_localizer.py:ncc_score_map": {
+      "value": 24.056350000000002,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 16
+    },
+    "hot.11.<matchTemplate>": {
+      "value": 22.7413375,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 16
+    },
+    "claimed.latency_per_pair_ms": {
+      "value": 11600.0,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "claimed.fingerprint_ms": {
+      "value": 9900.0,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "claimed.matchtemplate_ms": {
+      "value": 23.0,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    }
+  },
+  "protocol_sha256": null
+}
