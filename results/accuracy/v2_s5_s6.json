@@ -1,0 +1,90 @@
+{
+  "schema_id": "driftsense.results/1",
+  "name": "v2_s5_s6",
+  "produced_by": "eval/v2_s5_s6_eval.py",
+  "git_sha": "2c6caef60d8ed0597e8034f51c7b7eb741bc6352",
+  "created_at": "2026-10-18T12:45:06.918161Z",
+  "dataset": "dev",
+  "env": {
+    "python": "3.13.5",
+    "opencv": "4.12.0",
+    "numpy": "2.3.5",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "arch": "AMD64",
+    "instance_type": null,
+    "cool": false
+  },
+  "metrics": {
+    "dense_recall_at_20": {
+      "value": 0.4625,
+      "unit": "fraction",
+      "ci_low": 0.3875,
+      "ci_high": 0.5375,
+      "n": 160
+    },
+    "cascade_recall_at_20": {
+      "value": 0.4625,
+      "unit": "fraction",
+      "ci_low": 0.3875,
+      "ci_high": 0.5375,
+      "n": 160
+    },
+    "dense_top1": {
+      "value": 0.425,
+      "unit": "fraction",
+      "ci_low": 0.35,
+      "ci_high": 0.5,
+      "n": 160
+    },
+    "cascade_top1": {
+      "value": 0.4375,
+      "unit": "fraction",
+      "ci_low": 0.3625,
+      "ci_high": 0.5125,
+      "n": 160
+    },
+    "v1_rerank_top1": {
+      "value": 0.41875,
+      "unit": "fraction",
+      "ci_low": 0.34375,
+      "ci_high": 0.49375,
+      "n": 160
+    },
+    "cascade_escalation_rate": {
+      "value": 0.83125,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 160
+    },
+    "tau": {
+      "value": 0.1,
+      "unit": "score",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "recall_target_g2": {
+      "value": 0.98,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "v1_golden_recall_at_20": {
+      "value": 0.5875,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "v1_golden_top1": {
+      "value": 0.5,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    }
+  },
+  "protocol_sha256": null
+}
