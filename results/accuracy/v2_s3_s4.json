@@ -2,8 +2,8 @@
   "schema_id": "driftsense.results/1",
   "name": "v2_s3_s4",
   "produced_by": "eval/v2_s3_s4_eval.py",
-  "git_sha": "c310c178aa646ce5b086fac4591dbd9c41628fca",
-  "created_at": "2026-10-18T11:04:43.792754Z",
+  "git_sha": "87c09a84943c74c1e7525abf94321f93cb4c877a",
+  "created_at": "2026-10-18T11:08:19.724838Z",
   "dataset": "dev",
   "env": {
     "python": "3.13.5",
@@ -30,10 +30,10 @@
       "n": 160
     },
     "stage_ms_per_pair": {
-      "value": 76.35871062509523,
+      "value": 73.35053375013558,
       "unit": "ms",
-      "ci_low": 69.60721499963256,
-      "ci_high": 86.33637499906399,
+      "ci_low": 68.05055500080925,
+      "ci_high": 80.99987249952392,
       "n": 160
     },
     "v1_top1_accuracy": {
