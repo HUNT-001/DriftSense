@@ -2,8 +2,8 @@
   "schema_id": "driftsense.results/1",
   "name": "v2_s5_s6",
   "produced_by": "eval/v2_s5_s6_eval.py",
-  "git_sha": "2c6caef60d8ed0597e8034f51c7b7eb741bc6352",
-  "created_at": "2026-10-18T12:45:06.918161Z",
+  "git_sha": "c7dda0c544bcbb117bf4865b942d999126f3f0e7",
+  "created_at": "2026-10-18T12:52:27.471762Z",
   "dataset": "dev",
   "env": {
     "python": "3.13.5",
