@@ -2,8 +2,8 @@
   "schema_id": "driftsense.results/1",
   "name": "v2_dev",
   "produced_by": "eval/gate_g2.py",
-  "git_sha": "c2a7c66ffeb5c75c3a328927948c02c97db0613d",
-  "created_at": "2026-10-18T15:01:56.950400Z",
+  "git_sha": "039dc37b90addbf500866ccb43b9269fdbe9c7eb",
+  "created_at": "2026-10-18T16:41:09.746934Z",
   "dataset": "dev",
   "env": {
     "python": "3.13.5",
@@ -44,7 +44,7 @@
       "n": 40
     },
     "clean.latency_ms": {
-      "value": 1296.8973124990953,
+      "value": 476.61921750022884,
       "unit": "ms",
       "ci_low": null,
       "ci_high": null,
@@ -79,7 +79,7 @@
       "n": 40
     },
     "nominal.latency_ms": {
-      "value": 1405.7434474996626,
+      "value": 617.9976899995381,
       "unit": "ms",
       "ci_low": null,
       "ci_high": null,
@@ -114,7 +114,7 @@
       "n": 40
     },
     "hard.latency_ms": {
-      "value": 1463.8823375009451,
+      "value": 537.7337075004107,
       "unit": "ms",
       "ci_low": null,
       "ci_high": null,
@@ -149,7 +149,7 @@
       "n": 40
     },
     "ambiguous.latency_ms": {
-      "value": 1358.7730949995603,
+      "value": 490.93616500049393,
       "unit": "ms",
       "ci_low": null,
       "ci_high": null,
@@ -177,7 +177,7 @@
       "n": 160
     },
     "overall.latency_ms": {
-      "value": 1381.3240481248158,
+      "value": 530.8216950001679,
       "unit": "ms",
       "ci_low": null,
       "ci_high": null,

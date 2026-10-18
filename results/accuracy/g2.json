@@ -2,8 +2,8 @@
   "schema_id": "driftsense.results/1",
   "name": "g2",
   "produced_by": "eval/gate_g2.py",
-  "git_sha": "c2a7c66ffeb5c75c3a328927948c02c97db0613d",
-  "created_at": "2026-10-18T15:01:57.208413Z",
+  "git_sha": "039dc37b90addbf500866ccb43b9269fdbe9c7eb",
+  "created_at": "2026-10-18T16:41:09.833246Z",
   "dataset": "dev",
   "env": {
     "python": "3.13.5",
@@ -23,7 +23,7 @@
       "n": null
     },
     "v2_latency_ms": {
-      "value": 1381.3240481248158,
+      "value": 530.8216950001679,
       "unit": "ms",
       "ci_low": null,
       "ci_high": null,
@@ -37,21 +37,21 @@
       "n": null
     },
     "v1_lattice_latency_ms": {
-      "value": 25112.68914375023,
+      "value": 5720.393131250603,
       "unit": "ms",
       "ci_low": null,
       "ci_high": null,
       "n": 16
     },
     "speedup_vs_v1_lattice": {
-      "value": 18.180157782557522,
+      "value": 10.776487067373525,
       "unit": "x",
       "ci_low": null,
       "ci_high": null,
       "n": null
     },
     "speedup_vs_v1_ncc": {
-      "value": 0.09115183873389902,
+      "value": 0.23719872051177177,
       "unit": "x",
       "ci_low": null,
       "ci_high": null,
