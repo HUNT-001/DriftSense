@@ -214,18 +214,18 @@ def test_run_s0_s2_end_to_end_on_a_pair() -> None:
     assert res.rectified and res.rectified[0].residual_px < 0.2
 
 
-def test_localize_partial_runs_s0_s2_then_raises(monkeypatch) -> None:
-    from driftsense.contracts import Budget, Mode
+def test_localize_is_now_fully_assembled() -> None:
+    """localize was a stub through S0-S2; as of the G2 assembly it runs S0->S9 and
+    returns a complete v2 LocalizeResult (full-pipeline coverage lives in
+    test_v2_g2.py; this just guards that the former NotImplementedError is gone)."""
+    from driftsense.contracts import Budget, LocalizeResult, Mode
     from driftsense.v2.engine import localize
 
     t = _png(grid(16, 24)[30:130, 30:130])
     s = _png(grid(16, 24))
-    monkeypatch.delenv("DRIFTSENSE_V2_PARTIAL", raising=False)
-    with pytest.raises(NotImplementedError, match="lands in P2"):
-        localize(t, s, Mode.AUTO, Budget())
-    monkeypatch.setenv("DRIFTSENSE_V2_PARTIAL", "1")
-    with pytest.raises(NotImplementedError, match="S0.*S2 ran"):
-        localize(t, s, Mode.AUTO, Budget())
+    r = localize(t, s, Mode.AUTO, Budget())
+    assert isinstance(r, LocalizeResult) and r.engine == "v2"
+    assert len(r.candidates) >= 1 and r.timings
 
 
 def test_no_matchtemplate_or_pixel_loops_in_hot_paths() -> None:

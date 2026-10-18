@@ -1,0 +1,188 @@
+{
+  "schema_id": "driftsense.results/1",
+  "name": "v2_dev",
+  "produced_by": "eval/gate_g2.py",
+  "git_sha": "c2a7c66ffeb5c75c3a328927948c02c97db0613d",
+  "created_at": "2026-10-18T15:01:56.950400Z",
+  "dataset": "dev",
+  "env": {
+    "python": "3.13.5",
+    "opencv": "4.12.0",
+    "numpy": "2.3.5",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "arch": "AMD64",
+    "instance_type": null,
+    "cool": false
+  },
+  "metrics": {
+    "clean.top1_fast": {
+      "value": 1.0,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 40
+    },
+    "clean.top1_cascade": {
+      "value": 1.0,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 40
+    },
+    "clean.set_recall": {
+      "value": 1.0,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 40
+    },
+    "clean.false_confident": {
+      "value": 0.0,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 40
+    },
+    "clean.latency_ms": {
+      "value": 1296.8973124990953,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 40
+    },
+    "nominal.top1_fast": {
+      "value": 0.35,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 40
+    },
+    "nominal.top1_cascade": {
+      "value": 0.35,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 40
+    },
+    "nominal.set_recall": {
+      "value": 0.975,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 40
+    },
+    "nominal.false_confident": {
+      "value": 0.05,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 40
+    },
+    "nominal.latency_ms": {
+      "value": 1405.7434474996626,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 40
+    },
+    "hard.top1_fast": {
+      "value": 0.025,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 40
+    },
+    "hard.top1_cascade": {
+      "value": 0.025,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 40
+    },
+    "hard.set_recall": {
+      "value": 0.975,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 40
+    },
+    "hard.false_confident": {
+      "value": 0.0,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 40
+    },
+    "hard.latency_ms": {
+      "value": 1463.8823375009451,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 40
+    },
+    "ambiguous.top1_fast": {
+      "value": 0.0,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 40
+    },
+    "ambiguous.top1_cascade": {
+      "value": 0.0,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 40
+    },
+    "ambiguous.set_recall": {
+      "value": 0.95,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 40
+    },
+    "ambiguous.false_confident": {
+      "value": 0.0,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 40
+    },
+    "ambiguous.latency_ms": {
+      "value": 1358.7730949995603,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 40
+    },
+    "overall.top1_fast": {
+      "value": 0.34375,
+      "unit": "fraction",
+      "ci_low": 0.275,
+      "ci_high": 0.41875,
+      "n": 160
+    },
+    "overall.top1_cascade": {
+      "value": 0.34375,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 160
+    },
+    "overall.set_recall": {
+      "value": 0.975,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 160
+    },
+    "overall.latency_ms": {
+      "value": 1381.3240481248158,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 160
+    }
+  },
+  "protocol_sha256": null
+}

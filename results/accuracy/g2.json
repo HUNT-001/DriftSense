@@ -1,0 +1,139 @@
+{
+  "schema_id": "driftsense.results/1",
+  "name": "g2",
+  "produced_by": "eval/gate_g2.py",
+  "git_sha": "c2a7c66ffeb5c75c3a328927948c02c97db0613d",
+  "created_at": "2026-10-18T15:01:57.208413Z",
+  "dataset": "dev",
+  "env": {
+    "python": "3.13.5",
+    "opencv": "4.12.0",
+    "numpy": "2.3.5",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "arch": "AMD64",
+    "instance_type": null,
+    "cool": false
+  },
+  "metrics": {
+    "production_path": {
+      "value": 0.0,
+      "unit": "enum",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "v2_latency_ms": {
+      "value": 1381.3240481248158,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 160
+    },
+    "v1_ncc_latency_ms": {
+      "value": 125.91022687392979,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "v1_lattice_latency_ms": {
+      "value": 25112.68914375023,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 16
+    },
+    "speedup_vs_v1_lattice": {
+      "value": 18.180157782557522,
+      "unit": "x",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "speedup_vs_v1_ncc": {
+      "value": 0.09115183873389902,
+      "unit": "x",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "v2_top1_production": {
+      "value": 0.34375,
+      "unit": "fraction",
+      "ci_low": 0.275,
+      "ci_high": 0.41875,
+      "n": 160
+    },
+    "v2_top1_cascade": {
+      "value": 0.34375,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 160
+    },
+    "v1_top1": {
+      "value": 0.5,
+      "unit": "fraction",
+      "ci_low": 0.425,
+      "ci_high": 0.58125,
+      "n": null
+    },
+    "set_recall_structured": {
+      "value": 0.9833333333333333,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "set_recall_overall": {
+      "value": 0.975,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 160
+    },
+    "false_confident_rate": {
+      "value": 0.0125,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 160
+    },
+    "C1_speedup_10x_vs_lattice": {
+      "value": 1.0,
+      "unit": "bool",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "C2_top1_within_v1_ci": {
+      "value": 0.0,
+      "unit": "bool",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "C3_set_recall_ge_98_structured": {
+      "value": 1.0,
+      "unit": "bool",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "C4_false_confident_le_10": {
+      "value": 1.0,
+      "unit": "bool",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "G2_OVERALL_PASS": {
+      "value": 0.0,
+      "unit": "bool",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    }
+  },
+  "protocol_sha256": null
+}
