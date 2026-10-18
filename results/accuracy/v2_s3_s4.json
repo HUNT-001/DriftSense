@@ -1,0 +1,62 @@
+{
+  "schema_id": "driftsense.results/1",
+  "name": "v2_s3_s4",
+  "produced_by": "eval/v2_s3_s4_eval.py",
+  "git_sha": "87c09a84943c74c1e7525abf94321f93cb4c877a",
+  "created_at": "2026-10-18T11:08:19.724838Z",
+  "dataset": "dev",
+  "env": {
+    "python": "3.13.5",
+    "opencv": "4.12.0",
+    "numpy": "2.3.5",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "arch": "AMD64",
+    "instance_type": null,
+    "cool": false
+  },
+  "metrics": {
+    "top1_accuracy": {
+      "value": 0.425,
+      "unit": "fraction",
+      "ci_low": 0.35,
+      "ci_high": 0.5,
+      "n": 160
+    },
+    "recall_at_20": {
+      "value": 0.4625,
+      "unit": "fraction",
+      "ci_low": 0.3875,
+      "ci_high": 0.5375,
+      "n": 160
+    },
+    "stage_ms_per_pair": {
+      "value": 73.35053375013558,
+      "unit": "ms",
+      "ci_low": 68.05055500080925,
+      "ci_high": 80.99987249952392,
+      "n": 160
+    },
+    "v1_top1_accuracy": {
+      "value": 0.5,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "v1_recall_at_20": {
+      "value": 0.5875,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "v1_latency_per_pair_ms": {
+      "value": 125.91022687392979,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    }
+  },
+  "protocol_sha256": null
+}
