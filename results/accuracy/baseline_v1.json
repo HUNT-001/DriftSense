@@ -1,0 +1,48 @@
+{
+  "schema_id": "driftsense.results/1",
+  "name": "baseline_v1",
+  "produced_by": "eval/profile_v1.py",
+  "git_sha": "7c708c4a1ef181967ec053cf204810905ed1dadc",
+  "created_at": "2026-10-17T19:15:52.496638Z",
+  "dataset": "dev",
+  "env": {
+    "python": "3.13.5",
+    "opencv": "4.12.0",
+    "numpy": "2.3.5",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "arch": "AMD64",
+    "instance_type": null,
+    "cool": false
+  },
+  "metrics": {
+    "top1_accuracy": {
+      "value": 0.5,
+      "unit": "fraction",
+      "ci_low": 0.425,
+      "ci_high": 0.58125,
+      "n": 160
+    },
+    "recall_at_20": {
+      "value": 0.5875,
+      "unit": "fraction",
+      "ci_low": 0.5125,
+      "ci_high": 0.66875,
+      "n": 160
+    },
+    "latency_per_pair_ms": {
+      "value": 125.91022687392979,
+      "unit": "ms",
+      "ci_low": 90.97363999826484,
+      "ci_high": 214.22422499599637,
+      "n": 160
+    },
+    "wall_per_pair_ms": {
+      "value": 136.0390662500322,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 160
+    }
+  },
+  "protocol_sha256": null
+}
