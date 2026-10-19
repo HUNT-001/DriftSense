@@ -350,7 +350,12 @@ def v1_lattice_result(tb: bytes, sb: bytes, budget: Budget) -> LocalizeResult:
     """
     from math import isfinite
 
+    from eval._numpy_compat import enable_legacy_cross2
     from localization.ler_localizer import localize as v1_localize
+
+    # Frozen v1 (localization/*) uses np.cross on 2-vectors, removed in numpy 2.5.
+    # Restore the legacy scalar behaviour so the frozen reference runs unchanged.
+    enable_legacy_cross2()
 
     t = cv2.imdecode(np.frombuffer(tb, np.uint8), cv2.IMREAD_GRAYSCALE)
     s = cv2.imdecode(np.frombuffer(sb, np.uint8), cv2.IMREAD_GRAYSCALE)
