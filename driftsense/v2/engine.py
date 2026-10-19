@@ -44,6 +44,7 @@ from driftsense.contracts import (
     StageTiming,
 )
 from driftsense.v2.cascade import CascadeConfig, rerank
+from driftsense.v2.confidence import build_margin, load_calibrator
 from driftsense.v2.explain import build_all
 from driftsense.v2.ingest import IngestResult, ingest
 from driftsense.v2.lattice import Lattice, detect_lattice
@@ -261,13 +262,21 @@ def localize(template_bytes: bytes, search_bytes: bytes, mode: Mode, budget: Bud
     off = Offset(x_px=cx - tw / 2.0, y_px=cy - th / 2.0)
 
     # ---- confidence / margin ----
-    m = cands[0].score - (cands[1].score if len(cands) > 1 else cands[0].score - 1.0)
-    margin = Margin(
-        margin=float(m),
-        tau=float(tau),
-        calibrated=False,
-        decision="commit" if m >= tau else "escalate",
-    )
+    # An explicit budget.tau keeps the historical raw rank-1/rank-2 margin and its
+    # threshold verbatim (the agent and any caller that sets its own tau rely on
+    # that scale). The calibrated default (budget.tau is None) instead reports the
+    # robust margin_z against the CALIB-fit tau_commit, with p_correct populated;
+    # it falls back to the raw behaviour if calibration has not been run yet.
+    if budget.tau is not None:
+        m = cands[0].score - (cands[1].score if len(cands) > 1 else cands[0].score - 1.0)
+        margin = Margin(
+            margin=float(m),
+            tau=float(budget.tau),
+            calibrated=False,
+            decision="commit" if m >= budget.tau else "escalate",
+        )
+    else:
+        margin = build_margin([c.score for c in cands], load_calibrator())
 
     # ---- S9 explain (only the accuracy-oriented modes need artifacts) ----
     t0 = time.perf_counter()
