@@ -1,0 +1,650 @@
+{
+  "schema_id": "driftsense.results/1",
+  "name": "calibration",
+  "produced_by": "eval/calibration.py",
+  "git_sha": "46ff2f5b1b88b22ad9eeee45e88193f7c35b9b29",
+  "created_at": "2026-10-19T04:33:39.822559Z",
+  "dataset": "synthetic",
+  "env": {
+    "python": "3.13.5",
+    "opencv": "4.12.0",
+    "numpy": "2.3.5",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "arch": "AMD64",
+    "instance_type": null,
+    "cool": false
+  },
+  "metrics": {
+    "tau_commit": {
+      "value": 89.02783489227295,
+      "unit": "margin_z",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 160
+    },
+    "commit_region_exists": {
+      "value": 0.0,
+      "unit": "bool",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "ece": {
+      "value": 0.0636021246886816,
+      "unit": "fraction",
+      "ci_low": 0.041390921349980674,
+      "ci_high": 0.1273818422537252,
+      "n": 160
+    },
+    "brier": {
+      "value": 0.1244326659130806,
+      "unit": "score",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 160
+    },
+    "false_confident_at_tau": {
+      "value": 0.0,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": 1.0,
+      "n": 0
+    },
+    "false_confident_target": {
+      "value": 0.02,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "coverage_at_tau": {
+      "value": 0.0,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 160
+    },
+    "accuracy_overall": {
+      "value": 0.325,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 160
+    },
+    "reliability.bin0.conf": {
+      "value": 0.022835011455935368,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 64
+    },
+    "reliability.bin0.acc": {
+      "value": 0.078125,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 64
+    },
+    "reliability.bin1.conf": {
+      "value": 0.13494144744144745,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 26
+    },
+    "reliability.bin1.acc": {
+      "value": 0.07692307692307693,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 26
+    },
+    "reliability.bin2.conf": {
+      "value": 0.25,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 5
+    },
+    "reliability.bin2.acc": {
+      "value": 0.0,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 5
+    },
+    "reliability.bin3.conf": {
+      "value": 0.3333333333333333,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 1
+    },
+    "reliability.bin3.acc": {
+      "value": 1.0,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 1
+    },
+    "reliability.bin5.conf": {
+      "value": 0.5337740978744439,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 34
+    },
+    "reliability.bin5.acc": {
+      "value": 0.5588235294117647,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 34
+    },
+    "reliability.bin6.conf": {
+      "value": 0.6666666666666666,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 2
+    },
+    "reliability.bin6.acc": {
+      "value": 0.5,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 2
+    },
+    "reliability.bin7.conf": {
+      "value": 0.75,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 1
+    },
+    "reliability.bin7.acc": {
+      "value": 0.0,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 1
+    },
+    "reliability.bin9.conf": {
+      "value": 0.9362082362082361,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 27
+    },
+    "reliability.bin9.acc": {
+      "value": 0.8888888888888888,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 27
+    },
+    "rc.0.coverage": {
+      "value": 0.00625,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.0.risk": {
+      "value": 1.0,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.1.coverage": {
+      "value": 0.05625,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.1.risk": {
+      "value": 0.1111111111111111,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.2.coverage": {
+      "value": 0.1125,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.2.risk": {
+      "value": 0.1111111111111111,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.3.coverage": {
+      "value": 0.1625,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.3.risk": {
+      "value": 0.07692307692307693,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.4.coverage": {
+      "value": 0.2125,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.4.risk": {
+      "value": 0.14705882352941177,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.5.coverage": {
+      "value": 0.26875,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.5.risk": {
+      "value": 0.23255813953488372,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.6.coverage": {
+      "value": 0.31875,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.6.risk": {
+      "value": 0.2549019607843137,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.7.coverage": {
+      "value": 0.375,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.7.risk": {
+      "value": 0.3,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.8.coverage": {
+      "value": 0.425,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.8.risk": {
+      "value": 0.3235294117647059,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.9.coverage": {
+      "value": 0.475,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.9.risk": {
+      "value": 0.3815789473684211,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.10.coverage": {
+      "value": 0.53125,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.10.risk": {
+      "value": 0.43529411764705883,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.11.coverage": {
+      "value": 0.58125,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.11.risk": {
+      "value": 0.4731182795698925,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.12.coverage": {
+      "value": 0.63125,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.12.risk": {
+      "value": 0.504950495049505,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.13.coverage": {
+      "value": 0.6875,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.13.risk": {
+      "value": 0.5363636363636364,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.14.coverage": {
+      "value": 0.7375,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.14.risk": {
+      "value": 0.5677966101694916,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.15.coverage": {
+      "value": 0.79375,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.15.risk": {
+      "value": 0.5984251968503937,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.16.coverage": {
+      "value": 0.84375,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.16.risk": {
+      "value": 0.6222222222222222,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.17.coverage": {
+      "value": 0.89375,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.17.risk": {
+      "value": 0.6433566433566433,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.18.coverage": {
+      "value": 0.95,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.18.risk": {
+      "value": 0.6578947368421053,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.19.coverage": {
+      "value": 1.0,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "rc.19.risk": {
+      "value": 0.675,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "model.tau_commit": {
+      "value": 89.02783489227295,
+      "unit": "model",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "model.mad_floor": {
+      "value": 0.001,
+      "unit": "model",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "model.alpha": {
+      "value": 0.02,
+      "unit": "model",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "model.n_calib": {
+      "value": 160.0,
+      "unit": "model",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "model.n_knots": {
+      "value": 10.0,
+      "unit": "model",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "model.calibrated": {
+      "value": 1.0,
+      "unit": "model",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "model.z0": {
+      "value": 0.0016171646886091104,
+      "unit": "model",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "model.p0": {
+      "value": 0.0,
+      "unit": "model",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "model.z1": {
+      "value": 0.09104560870817843,
+      "unit": "model",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "model.p1": {
+      "value": 0.022222222222222223,
+      "unit": "model",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "model.z2": {
+      "value": 0.7490622913263217,
+      "unit": "model",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "model.p2": {
+      "value": 0.09090909090909091,
+      "unit": "model",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "model.z3": {
+      "value": 1.136347372647454,
+      "unit": "model",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "model.p3": {
+      "value": 0.11764705882352941,
+      "unit": "model",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "model.z4": {
+      "value": 1.9526758844612164,
+      "unit": "model",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "model.p4": {
+      "value": 0.15384615384615385,
+      "unit": "model",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "model.z5": {
+      "value": 2.4833839655596415,
+      "unit": "model",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "model.p5": {
+      "value": 0.3333333333333333,
+      "unit": "model",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "model.z6": {
+      "value": 2.6623387271453764,
+      "unit": "model",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "model.p6": {
+      "value": 0.5454545454545454,
+      "unit": "model",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "model.z7": {
+      "value": 8.701301777058585,
+      "unit": "model",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "model.p7": {
+      "value": 0.6666666666666666,
+      "unit": "model",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "model.z8": {
+      "value": 8.989733369862455,
+      "unit": "model",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "model.p8": {
+      "value": 0.9230769230769231,
+      "unit": "model",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "model.z9": {
+      "value": 11.825274756403902,
+      "unit": "model",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "model.p9": {
+      "value": 0.9285714285714286,
+      "unit": "model",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    }
+  },
+  "protocol_sha256": null
+}
