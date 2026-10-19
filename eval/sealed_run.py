@@ -149,8 +149,41 @@ DISCLOSURES = [
             "localization/, data_gen/, config.py, contracts.py, api.py is empty between the pin and "
             "the harness branch). The fixes (top-1 from native offset; set-recall via "
             "gate_g2._set_recall; grade glob skips sidecars; v1 lattice path) were validated "
-            "exhaustively on the DEV set, and the committed sealed numbers come from a single "
-            "re-run with the corrected harness."
+            "on the DEV set before the re-run (run 2). Run 2 then surfaced a further v1-arm "
+            "bug -- see the next disclosure."
+        ),
+    },
+    {
+        "id": "second-run-v1-arm-bug-2026-10-19",
+        "when": "2026-10-19 (second sealed run completed; corrected before the third/final run)",
+        "what": (
+            "The second (corrected) sealed run completed with exit 0, but the v1 arm scored top-1 = "
+            "0.000 on every tier (clean included, where ncc scores 0.975). Cause (eval/sealed_run.py "
+            "only): v1's localizer returns its lattice candidates in replica/generation order, NOT "
+            "ranked, and its authoritative pick is pred_x/pred_y = max(candidates, key=combined). The "
+            "v1 arm wrapper used candidates[0] -- a fixed-position replica near (935,935) -- as the "
+            "committed point. Fixed to rank candidates by combined score and take the committed point "
+            "from pred_x/pred_y (native centre, subpixel). The v1 candidate positions were already in "
+            "native coordinates; only the candidate SELECTION was wrong, not the frame."
+        ),
+        "why_no_influence": (
+            "A harness-side candidate-selection fix in eval/sealed_run.py; the engine stayed SHA-frozen "
+            "at f9395b84 (git diff over driftsense/, localization/, data_gen/, config.py, contracts.py, "
+            "api.py remained empty). The bug was found and fixed WITHOUT any sealed label: it was "
+            "diagnosed and verified entirely on DEV (v1 lattice pred_x/pred_y hits 12/12 clean DEV "
+            "pairs vs candidates[0] 0/12; full-DEV v1 top1 clean 0.975 / nominal 0.850 / hard 0.400 / "
+            "ambiguous 0.000). The fix added a self-test assertion (v1 clean top1 >= 0.8 on DEV) that "
+            "the old 'v1 != ncc' check missed. Before the third run a proactive cross-arm audit "
+            "confirmed EVERY arm (ncc, v1, v2_single, all six ablation rungs, both agent arms) scores "
+            "top-1 from the engine's ranked native prediction (not candidates[0], not rectified "
+            "coordinates) and that set-recall uses the gate_g2 generation definition throughout; all "
+            "six ablation rungs localize 8/8 on DEV clean. The committed sealed numbers come from the "
+            "third run with this audited harness."
+        ),
+        "report_limitation_line": (
+            "The sealed-eval harness (never the engine) was corrected over three runs; the engine was "
+            "SHA-frozen at v2-freeze (f9395b84) throughout and every harness bug was found and fixed on "
+            "the DEV set, so no sealed label influenced any result."
         ),
     },
 ]
