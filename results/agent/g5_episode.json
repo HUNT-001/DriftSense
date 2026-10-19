@@ -1,0 +1,160 @@
+{
+  "schema_id": "driftsense.results/1",
+  "name": "g5_episode",
+  "produced_by": "eval/agent_eval.py",
+  "git_sha": "eac18cab9265e60b9c496b21adf7b8eac22858d4",
+  "created_at": "2026-10-19T02:20:58.291829Z",
+  "dataset": "synthetic",
+  "env": {
+    "python": "3.13.5",
+    "opencv": "4.12.0",
+    "numpy": "2.3.5",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "arch": "AMD64",
+    "instance_type": null,
+    "cool": false
+  },
+  "metrics": {
+    "n_episodes": {
+      "value": 48.0,
+      "unit": "episodes",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 48
+    },
+    "v1_single.success": {
+      "value": 1.0,
+      "unit": "rate",
+      "ci_low": 0.9258973488472576,
+      "ci_high": 0.9999999999999999,
+      "n": 48
+    },
+    "v1_single.false_commit": {
+      "value": 0.0,
+      "unit": "rate",
+      "ci_low": 0.0,
+      "ci_high": 0.0741026511527422,
+      "n": 48
+    },
+    "v1_single.escalation": {
+      "value": 0.0,
+      "unit": "rate",
+      "ci_low": 0.0,
+      "ci_high": 0.0741026511527422,
+      "n": 48
+    },
+    "v1_single.mean_steps": {
+      "value": 2.0,
+      "unit": "acquisitions",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 48
+    },
+    "v1_single.mean_dose": {
+      "value": 47060000.0,
+      "unit": "electrons",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 48
+    },
+    "v1_single.mean_wall_ms": {
+      "value": 71.71166041795611,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 48
+    },
+    "v2_single.success": {
+      "value": 0.9166666666666666,
+      "unit": "rate",
+      "ci_low": 0.8044643483893369,
+      "ci_high": 0.9671167756500444,
+      "n": 48
+    },
+    "v2_single.false_commit": {
+      "value": 0.0,
+      "unit": "rate",
+      "ci_low": 0.0,
+      "ci_high": 0.0741026511527422,
+      "n": 48
+    },
+    "v2_single.escalation": {
+      "value": 0.08333333333333333,
+      "unit": "rate",
+      "ci_low": 0.03288322434995555,
+      "ci_high": 0.19553565161066291,
+      "n": 48
+    },
+    "v2_single.mean_steps": {
+      "value": 2.0,
+      "unit": "acquisitions",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 48
+    },
+    "v2_single.mean_dose": {
+      "value": 47060000.0,
+      "unit": "electrons",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 48
+    },
+    "v2_single.mean_wall_ms": {
+      "value": 349.722402082989,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 48
+    },
+    "agent_rules.success": {
+      "value": 0.9791666666666666,
+      "unit": "rate",
+      "ci_low": 0.8910053086246883,
+      "ci_high": 0.9963129840206002,
+      "n": 48
+    },
+    "agent_rules.false_commit": {
+      "value": 0.0,
+      "unit": "rate",
+      "ci_low": 0.0,
+      "ci_high": 0.0741026511527422,
+      "n": 48
+    },
+    "agent_rules.escalation": {
+      "value": 0.020833333333333332,
+      "unit": "rate",
+      "ci_low": 0.003687015979399688,
+      "ci_high": 0.10899469137531158,
+      "n": 48
+    },
+    "agent_rules.mean_steps": {
+      "value": 3.1041666666666665,
+      "unit": "acquisitions",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 48
+    },
+    "agent_rules.mean_dose": {
+      "value": 64507916.666666664,
+      "unit": "electrons",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 48
+    },
+    "agent_rules.mean_wall_ms": {
+      "value": 810.0177937500727,
+      "unit": "ms",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 48
+    },
+    "c2_recovery.count": {
+      "value": 3.0,
+      "unit": "episodes",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 4
+    }
+  },
+  "protocol_sha256": "dcf7ebb4230b810a1e044f6fcf5d7b495892d754e551d0fb62df82c8d380d5e8"
+}
