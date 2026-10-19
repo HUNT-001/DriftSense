@@ -1,0 +1,271 @@
+{
+  "protocol_id": "driftsense.sealed-eval",
+  "protocol_version": "1.0.0",
+  "title": "DriftSense sealed-set pre-registered evaluation protocol",
+  "status": "pre-registered",
+  "registered_on": "2026-10-19",
+  "owner": "Person A",
+  "preamble": "This document is PRE-REGISTERED before the sealed set is run. It fixes the arms, metrics, confidence-interval method, decision thresholds, engine revision, dataset seed, and exact reproduction commands. It is frozen by sha256 (see 'hash') and tagged protocol-v1. Running the sealed set happens ONCE, in a separate session, via the entry point named below; this document neither reads, lists, generates, nor runs the sealed set.",
+  "engine": {
+    "tag": "v2-freeze",
+    "git_sha": "f9395b84dd654ff1d537f6817c258a0f2b9373de",
+    "selector_env": "DRIFTSENSE_ENGINE=v2",
+    "entry_point": "driftsense.api.localize(template_bytes, search_bytes, mode, budget) -> LocalizeResult",
+    "contract_version": "1.0.0",
+    "note": "All v2 arms MUST run against exactly this commit. The grader records the running git_sha into each results file (ResultsFile.git_sha) and MUST refuse to grade if it differs from engine.git_sha."
+  },
+  "dataset": {
+    "name": "sealed",
+    "results_dataset_label": "sealed",
+    "seed": 9999,
+    "tiers": ["clean", "nominal", "hard", "ambiguous"],
+    "structured_tiers": ["clean", "nominal", "hard"],
+    "adversarial_tiers": ["ambiguous"],
+    "families": ["finfet", "dram", "grid", "staggered"],
+    "access_rule": "Only eval/sealed_run.py may read/list/download sealed data, and only when a human sets DRIFTSENSE_ALLOW_SEALED=1. The sealed set is run exactly once.",
+    "note": "Tier and family labels come from the sealed manifest produced by the same generator (config.py TIERS, contracts.LatticeType). 'unknown' family and any tier not listed here are reported but excluded from per-family / per-tier decision rules."
+  },
+  "ci": {
+    "method": "wilson",
+    "description": "Wilson score interval for a binomial proportion.",
+    "level": 0.95,
+    "sided": "two-sided",
+    "applies_to": [
+      "per-tier top-1",
+      "per-family top-1",
+      "pooled top-1",
+      "set-recall",
+      "false-confident rate",
+      "agent arm success / false-commit / escalation rates"
+    ],
+    "continuous_summary": "For continuous metrics (subpixel nm error) report median and p95 with a 95% CI by BCa bootstrap (10000 resamples, seed 9999)."
+  },
+  "metrics": [
+    {
+      "key": "top1.<tier>",
+      "name": "per-tier top-1 localization accuracy",
+      "unit": "rate",
+      "stratification": "per tier in dataset.tiers",
+      "ci": "wilson",
+      "definition": "Fraction of pairs whose rank-1 candidate center falls within the ground-truth template window (same hit test as eval/gate_g2.py _hit)."
+    },
+    {
+      "key": "top1.family.<family>",
+      "name": "per-family top-1 localization accuracy",
+      "unit": "rate",
+      "stratification": "per family in dataset.families",
+      "ci": "wilson",
+      "definition": "Top-1 hit rate stratified by LatticeType family."
+    },
+    {
+      "key": "top1.pooled",
+      "name": "pooled top-1 localization accuracy",
+      "unit": "rate",
+      "stratification": "pooled over all tiers",
+      "ci": "wilson",
+      "definition": "Top-1 hit rate over the full sealed set."
+    },
+    {
+      "key": "set_recall.<tier>",
+      "name": "set-recall (candidate generation)",
+      "unit": "rate",
+      "stratification": "per tier; headline pooled over structured_tiers",
+      "ci": "wilson",
+      "definition": "Fraction of pairs where the ground-truth location appears in the returned candidate set (within budget.max_candidates). Not recall@20; this is generation set-recall as defined in eval/gate_g2.py."
+    },
+    {
+      "key": "false_confident.pooled",
+      "name": "false-confident rate",
+      "unit": "rate",
+      "stratification": "pooled; also reported per tier",
+      "ci": "wilson",
+      "definition": "Fraction of pairs that COMMIT (Margin.decision == 'commit', i.e. margin >= tau) AND whose rank-1 is wrong. This is the quantity the active-perception agent exists to reduce."
+    },
+    {
+      "key": "ece",
+      "name": "expected calibration error",
+      "unit": "fraction",
+      "stratification": "pooled",
+      "ci": "bootstrap",
+      "definition": "ECE of Margin.p_correct against the top-1 correctness label, equal-count binning, as in eval/calibration.py."
+    },
+    {
+      "key": "subpixel_nm_error",
+      "name": "subpixel localization error",
+      "unit": "nm",
+      "stratification": "pooled over structured_tiers; reported per tier",
+      "ci": "bootstrap",
+      "summary": ["median", "p95"],
+      "definition": "Euclidean distance between committed Offset (x_nm, y_nm) and ground truth, over pairs that COMMIT. Requires Offset.pixel_size_nm present."
+    },
+    {
+      "key": "<arm>.success",
+      "name": "agent-arm success rate",
+      "unit": "rate",
+      "stratification": "per arm over episodes",
+      "ci": "wilson",
+      "definition": "Episode ends with a correct commit within the dose/step budget (eval/agent_eval.py grading)."
+    },
+    {
+      "key": "<arm>.false_commit",
+      "name": "agent-arm false-commit rate",
+      "unit": "rate",
+      "stratification": "per arm over episodes",
+      "ci": "wilson",
+      "definition": "Episode commits but the committed location is wrong."
+    },
+    {
+      "key": "<arm>.escalation",
+      "name": "agent-arm escalation rate",
+      "unit": "rate",
+      "stratification": "per arm over episodes",
+      "ci": "wilson",
+      "definition": "Episode escalates to a human / abstains instead of committing."
+    },
+    {
+      "key": "<arm>.mean_steps",
+      "name": "agent-arm mean acquisitions",
+      "unit": "acquisitions",
+      "stratification": "per arm over episodes",
+      "ci": "bootstrap",
+      "definition": "Mean number of SEM acquisitions (re-images) per episode."
+    },
+    {
+      "key": "<arm>.mean_dose",
+      "name": "agent-arm mean electron dose",
+      "unit": "electrons",
+      "stratification": "per arm over episodes",
+      "ci": "bootstrap",
+      "definition": "Mean cumulative electron dose per episode (VirtualSEM accounting)."
+    }
+  ],
+  "arms": [
+    {
+      "id": "ncc",
+      "name": "NCC baseline",
+      "engine": "external",
+      "invoke": "eval/sealed_run.py --arm ncc",
+      "definition": "Single-scale normalized cross-correlation (OpenCV matchTemplate, TM_CCOEFF_NORMED) over the raw search frame; rank candidates by correlation peak. No lattice rectification, no calibration (never commits under the margin rule; false_confident is reported as n/a)."
+    },
+    {
+      "id": "v1",
+      "name": "v1 golden reference",
+      "engine": "v1",
+      "selector_env": "DRIFTSENSE_ENGINE=v1",
+      "invoke": "eval/sealed_run.py --arm v1",
+      "definition": "Frozen v1 engine (tag v1-munichtech, driftsense/v1/), lattice path. Primary accuracy baseline. Compared like-for-like per the G2 notes (NCC-path, tier-pooled; sign-agnostic orientation)."
+    },
+    {
+      "id": "v2_single",
+      "name": "v2 single-shot",
+      "engine": "v2",
+      "selector_env": "DRIFTSENSE_ENGINE=v2",
+      "mode": "auto",
+      "invoke": "eval/sealed_run.py --arm v2_single",
+      "definition": "One v2 localize per pair at the pinned engine SHA, commit iff Margin.decision == 'commit'. Headline accuracy/calibration arm."
+    },
+    {
+      "id": "agent_rules",
+      "name": "active-perception agent (offline rules policy)",
+      "engine": "v2",
+      "invoke": "eval/sealed_run.py --arm agent_rules",
+      "definition": "Full active-perception runner with the offline rules policy; re-images while margin < tau up to the dose/step budget, then commits or escalates. Arms share the identical first search frame with v2_single (eval/agent_eval.py convention)."
+    },
+    {
+      "id": "ablation_ladder",
+      "name": "v2 ablation ladder",
+      "engine": "v2",
+      "invoke": "eval/sealed_run.py --arm ablation --rung <rung>",
+      "definition": "v2 with one capability removed per rung, to attribute accuracy/calibration to each stage. Each rung is graded on the same metrics as v2_single (top-1 pooled + per-tier, set-recall, false-confident, ECE, subpixel).",
+      "rungs": [
+        {"id": "full", "removes": "nothing", "note": "identical to v2_single; sanity anchor"},
+        {"id": "no_cascade", "removes": "S5-S6 cascade (FAST path only, no AUTO re-score)"},
+        {"id": "no_contour_subpixel", "removes": "contour / subpixel refinement (integer-pixel offset only)"},
+        {"id": "no_calibration", "removes": "isotonic calibration + Wilson tau (fixed tau from Budget, p_correct unset)"},
+        {"id": "no_roughness_fusion", "removes": "roughness score fusion (lattice score only)"},
+        {"id": "lattice_only", "removes": "everything above the bare lattice detect+rectify core"}
+      ]
+    }
+  ],
+  "decision": {
+    "primary_endpoint": "top1.pooled for arm v2_single",
+    "rules": [
+      {
+        "id": "D1_accuracy_floor",
+        "requires": "v2_single top1.pooled Wilson 95% lower bound >= 0.90"
+      },
+      {
+        "id": "D2_noninferior_to_v1",
+        "requires": "v2_single top1.pooled Wilson 95% lower bound >= (v1 top1.pooled point estimate - 0.02)",
+        "note": "2 percentage-point non-inferiority margin."
+      },
+      {
+        "id": "D3_beats_ncc",
+        "requires": "v2_single top1.pooled point estimate >= ncc top1.pooled point estimate + 0.10"
+      },
+      {
+        "id": "D4_per_tier_structured",
+        "requires": "for each tier in structured_tiers: v2_single top1.<tier> Wilson 95% lower bound >= 0.85"
+      },
+      {
+        "id": "D5_per_family",
+        "requires": "for each family in families: v2_single top1.family.<family> Wilson 95% lower bound >= 0.80"
+      },
+      {
+        "id": "D6_set_recall",
+        "requires": "v2_single set-recall pooled over structured_tiers >= 0.98"
+      },
+      {
+        "id": "D7_false_confident",
+        "requires": "v2_single false_confident.pooled <= 0.02 AND its Wilson 95% upper bound <= 0.05"
+      },
+      {
+        "id": "D8_calibration",
+        "requires": "v2_single ece <= 0.10"
+      },
+      {
+        "id": "D9_subpixel",
+        "requires": "v2_single subpixel_nm_error median <= 0.50 nm AND p95 <= 1.00 nm over structured_tiers"
+      },
+      {
+        "id": "D10_agent_false_commit",
+        "requires": "agent_rules false_commit <= 0.02 AND its Wilson 95% upper bound <= 0.05"
+      },
+      {
+        "id": "D11_agent_not_worse",
+        "requires": "agent_rules success Wilson 95% lower bound >= v2_single success point estimate",
+        "note": "Re-imaging must not reduce success."
+      },
+      {
+        "id": "D12_agent_budget",
+        "requires": "agent_rules mean_steps <= 3.0 acquisitions AND mean_dose <= the per-episode dose budget recorded in the results env"
+      }
+    ],
+    "overall_pass": "ALL of D1..D12 hold. Any failure is reported as-is; thresholds are frozen and MUST NOT be edited after protocol-v1 is tagged.",
+    "multiplicity_note": "Endpoints D1..D12 are a fixed pre-registered battery; no post-hoc metric, tier, family, or threshold may be added or changed after tagging. New analyses are exploratory and labeled as such."
+  },
+  "reproduce": {
+    "preconditions": [
+      "git checkout f9395b84dd654ff1d537f6817c258a0f2b9373de  (== tag v2-freeze)",
+      "make setup",
+      "export DRIFTSENSE_ALLOW_SEALED=1   (human-set; required to touch sealed data)"
+    ],
+    "commands": [
+      "python -m eval.sealed_run --arm ncc            --seed 9999 --protocol eval/protocol.json",
+      "python -m eval.sealed_run --arm v1             --seed 9999 --protocol eval/protocol.json",
+      "python -m eval.sealed_run --arm v2_single      --seed 9999 --protocol eval/protocol.json",
+      "python -m eval.sealed_run --arm agent_rules    --seed 9999 --protocol eval/protocol.json",
+      "python -m eval.sealed_run --arm ablation --rung full --rung no_cascade --rung no_contour_subpixel --rung no_calibration --rung no_roughness_fusion --rung lattice_only --seed 9999 --protocol eval/protocol.json"
+    ],
+    "outputs": [
+      "results/sealed/<arm>.json  (ResultsFile schema driftsense.results/1; dataset='sealed'; git_sha must equal engine.git_sha; protocol_sha256 must equal this protocol's hash.value)"
+    ],
+    "note": "eval/sealed_run.py is implemented in a separate PR/session. The grader stamps ResultsFile.protocol_sha256 with hash.value and refuses to run if the live protocol sha256 or the running git_sha disagree with this file."
+  },
+  "hash": {
+    "algorithm": "sha256",
+    "canonicalization": "sha256 over json.dumps(obj, sort_keys=True, separators=(',', ':'), ensure_ascii=True) of this file WITH the top-level 'hash' key removed, UTF-8 encoded. Line-ending / whitespace independent.",
+    "command": "python -c \"import hashlib,json; d=json.load(open('eval/protocol.json')); d.pop('hash',None); print(hashlib.sha256(json.dumps(d,sort_keys=True,separators=(',',':'),ensure_ascii=True).encode()).hexdigest())\"",
+    "value": "776ed76e7434087905e0a309ddc64a5b79689e8331ecd43936345a3851f6d6c0"
+  }
+}
