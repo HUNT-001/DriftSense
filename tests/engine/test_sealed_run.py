@@ -162,6 +162,27 @@ def test_disclosure_sidecar_and_marker(tmp_path):
     assert rf.metrics["disclosure.recorded"].value == float(len(sr.DISCLOSURES))
 
 
+def test_grade_cli_skips_non_resultsfile_sidecars(tmp_path, monkeypatch):
+    # Regression: --grade must skip disclosures.json / decisions.json, not crash on them.
+    protocol = sr.load_protocol()
+    monkeypatch.setattr(sr, "OUT_DIR", tmp_path)
+    rf = sr.build_results(
+        "v2_single",
+        "sealed",
+        {
+            "top1.pooled": __import__("driftsense.contracts", fromlist=["Metric"]).Metric(
+                value=0.46, unit="rate", n=160
+            )
+        },
+        protocol,
+        sealed=True,
+    )
+    sr.write_results(rf, tmp_path, "v2_single")
+    sr.write_disclosures(tmp_path, protocol)  # the file that crashed the first run
+    assert sr.main(["--grade"]) == 0
+    assert (tmp_path / "decisions.json").exists()
+
+
 def test_grade_marks_missing_inputs_na():
     protocol = sr.load_protocol()
     verdict = sr.grade({}, protocol)

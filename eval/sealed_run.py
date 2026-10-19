@@ -113,7 +113,46 @@ DISCLOSURES = [
             "to the sealed data. No pair images were viewed."
         ),
         "report_limitation_line": DISCLOSURE_REPORT_LINE,
-    }
+    },
+    {
+        "id": "v2freeze-tag-vs-pinned-sha-2026-10-19",
+        "when": "2026-10-19 (A9 sealed run)",
+        "what": (
+            "The git tag 'v2-freeze' points to d6d1783, but eval/protocol.json pins the engine "
+            "at f9395b84 (the pre-squash A3 commit; its squashed form on main is 81b4dd5). The "
+            "guard enforces the pinned SHA f9395b84."
+        ),
+        "why_no_influence": (
+            "git diff f9395b84..a/p7-sealed-run over driftsense/, localization/, data_gen/, "
+            "config.py, contracts.py, api.py is EMPTY: the engine code is byte-identical, so the "
+            "run against f9395b84 is the frozen engine regardless of where the tag points."
+        ),
+    },
+    {
+        "id": "first-run-harness-bugs-2026-10-19",
+        "when": "2026-10-19 (first sealed run aborted in --grade; corrected before any re-run)",
+        "what": (
+            "The first sealed run completed all arms but --grade crashed (globbed disclosures.json "
+            "as a ResultsFile). Inspecting the arm outputs revealed THREE harness bugs (all in "
+            "eval/sealed_run.py, none in the engine): (1) top-1 / false-confident / ECE were scored "
+            "on candidates[0], which the frozen engine leaves in the RECTIFIED frame, while only "
+            "LocalizeResult.offset is mapped back to native coords -- understating v2 on the rotated "
+            "tiers (nominal/hard); (2) set-recall used the engine's returned top-K instead of the "
+            "generation set-recall defined in eval/gate_g2.py; (3) the --grade glob tried to parse "
+            "non-ResultsFile sidecars. Additionally the v1 arm was invoking v1's default (NCC-like) "
+            "candidate source, making it identical to ncc; corrected to the true v1 LATTICE path "
+            "(candidate_source='lattice') per the protocol, with ncc kept as the NCC-path baseline."
+        ),
+        "why_no_influence": (
+            "These are measurement/reporting choices in eval/sealed_run.py, not engine changes; the "
+            "engine stayed SHA-frozen at f9395b84 and deterministic (git diff over driftsense/, "
+            "localization/, data_gen/, config.py, contracts.py, api.py is empty between the pin and "
+            "the harness branch). The fixes (top-1 from native offset; set-recall via "
+            "gate_g2._set_recall; grade glob skips sidecars; v1 lattice path) were validated "
+            "exhaustively on the DEV set, and the committed sealed numbers come from a single "
+            "re-run with the corrected harness."
+        ),
+    },
 ]
 
 
@@ -266,6 +305,62 @@ def ncc_result(tb: bytes, sb: bytes, max_candidates: int) -> LocalizeResult:
     )
 
 
+def v1_lattice_result(tb: bytes, sb: bytes, budget: Budget) -> LocalizeResult:
+    """Frozen v1 engine on its LATTICE candidate source (protocol v1 arm).
+
+    The v1 contract adapter calls v1 with its default (NCC-like) candidate source,
+    which is why the v1 arm first came out identical to ncc. The protocol's v1 arm
+    is the lattice path, so we call the frozen v1 localizer directly with
+    candidate_source="lattice" (exactly as eval/gate_g2 does for latency) and wrap
+    the result in the contract, mirroring driftsense.engines.v1_adapter's conversion.
+    v1 works on the raw search frame, so candidates/offset are already NATIVE coords.
+    """
+    from math import isfinite
+
+    from localization.ler_localizer import localize as v1_localize
+
+    t = cv2.imdecode(np.frombuffer(tb, np.uint8), cv2.IMREAD_GRAYSCALE)
+    s = cv2.imdecode(np.frombuffer(sb, np.uint8), cv2.IMREAD_GRAYSCALE)
+    rh, rw = t.shape[:2]
+    res = v1_localize(
+        t, s, top_k=max(budget.max_candidates, 40), candidate_source="lattice", return_candidates=True
+    )
+
+    def _score(c) -> float:
+        for attr in ("combined", "fp", "ncc"):
+            v = getattr(c, attr, float("nan"))
+            if v is not None and isfinite(float(v)):
+                return float(v)
+        return 0.0
+
+    raw = list(getattr(res, "candidates", []) or [])[: budget.max_candidates]
+    cands = [
+        Candidate(rank=i + 1, x_px=float(c.x) - rw / 2.0, y_px=float(c.y) - rh / 2.0, score=_score(c))
+        for i, c in enumerate(raw)
+    ]
+    if not cands:
+        cands = [
+            Candidate(rank=1, x_px=float(res.pred_x) - rw / 2.0, y_px=float(res.pred_y) - rh / 2.0, score=0.0)
+        ]
+    m = cands[0].score - (cands[1].score if len(cands) > 1 else cands[0].score - 1.0)
+    tau = budget.tau if budget.tau is not None else _DEFAULT_TAU
+    return LocalizeResult(
+        engine="v1",
+        engine_version="v1-munichtech-lattice",
+        mode=Mode.AUTO,
+        offset=Offset(x_px=cands[0].x_px, y_px=cands[0].y_px),
+        candidates=cands,
+        margin=Margin(
+            margin=float(m),
+            tau=float(tau),
+            calibrated=False,
+            decision="commit" if m >= tau else "escalate",
+        ),
+        total_ms=float(getattr(res, "runtime_ms", 0.0)),
+        warnings=["v1 lattice path; margin/tau uncalibrated; centre->top-left"],
+    )
+
+
 def _compose(
     tb: bytes, sb: bytes, budget: Budget, *, use_roughness: bool, use_subpixel: bool, use_calibration: bool
 ) -> LocalizeResult:
@@ -371,7 +466,7 @@ def run_localize(arm: str, rung: str | None, tb: bytes, sb: bytes, budget: Budge
     if arm == "ncc":
         return ncc_result(tb, sb, budget.max_candidates)
     if arm == "v1":
-        return localize(tb, sb, Mode.AUTO, budget, engine="v1")
+        return v1_lattice_result(tb, sb, budget)
     if arm == "v2_single":
         return localize(tb, sb, Mode.AUTO, budget, engine="v2")
     if arm == "ablation":
@@ -417,22 +512,41 @@ class PairRecord:
     cy: float
 
 
+# The frozen engine maps only the rank-1 winner back to native coords
+# (LocalizeResult.offset), leaving candidates[1:] in the rectified frame, so top-1 is
+# scored from `offset` (native). set-recall uses the generation-set definition below.
+def _generation_set_recall(template_bytes: bytes, search_bytes: bytes, gx: float, gy: float) -> int:
+    """Generation set-recall, identical to eval/gate_g2._set_recall (uncapped v1
+    lattice candidate set, native coords). Reused verbatim so D6 matches G2."""
+    from eval.gate_g2 import _set_recall
+
+    return int(_set_recall(template_bytes, search_bytes, gx, gy))
+
+
 def grade_pairs(
-    root: Path, arm: str, rung: str | None, budget: Budget, limit: int | None
+    root: Path,
+    arm: str,
+    rung: str | None,
+    budget: Budget,
+    limit: int | None,
+    compute_set_recall: bool = True,
 ) -> list[PairRecord]:
     recs: list[PairRecord] = []
     for tier in TIERS:
         for p in iter_pairs(root, tier, limit):
             r = run_localize(arm, rung, p.template, p.search, budget)
-            win = r.candidates[0]
-            hit = _hit(win.x_px, win.y_px, p.ref_w, p.ref_h, p.gt_x, p.gt_y)
-            set_hit = any(
-                _hit(c.x_px, c.y_px, p.ref_w, p.ref_h, p.gt_x, p.gt_y)
-                for c in r.candidates[: budget.max_candidates]
-            )
-            committed = r.margin.decision == "commit"
+            # top-1 in NATIVE coords: the engine's rank-1 localization is `offset`.
             cx = r.offset.x_px + p.ref_w / 2.0
             cy = r.offset.y_px + p.ref_h / 2.0
+            hit = math.hypot(cx - p.gt_x, cy - p.gt_y) <= THR_PX
+            # set-recall = generation set-recall, exactly as eval/gate_g2._set_recall:
+            # does the (uncapped) v1 lattice candidate SET contain the truth? It is a
+            # property of candidate GENERATION (native coords), identical across arms, so
+            # it is computed only where D6 needs it (v2_single); -1 = not computed.
+            set_hit = (
+                _generation_set_recall(p.template, p.search, p.gt_x, p.gt_y) if compute_set_recall else -1
+            )
+            committed = r.margin.decision == "commit"
             px_err = math.hypot(cx - p.gt_x, cy - p.gt_y) if committed else math.nan
             recs.append(
                 PairRecord(
@@ -466,19 +580,23 @@ def pair_metrics(
     by_tier: dict[str, list[PairRecord]] = {t: [r for r in recs if r.tier == t] for t in TIERS}
     seen_fams = sorted({r.family for r in recs})
 
+    has_set_recall = any(r.set_hit >= 0 for r in recs)  # -1 => not computed for this arm
+    struct = [r for r in recs if r.tier in STRUCTURED]
+
     # top-1 per tier / family / pooled
     for t, rs in by_tier.items():
         if rs:
             m[f"top1.{t}"] = _rate(sum(r.hit for r in rs), len(rs))
-            m[f"set_recall.{t}"] = _rate(sum(r.set_hit for r in rs), len(rs))
+            if has_set_recall:
+                m[f"set_recall.{t}"] = _rate(sum(r.set_hit for r in rs), len(rs))
     for fam in seen_fams:
         rs = [r for r in recs if r.family == fam]
         m[f"top1.family.{fam}"] = _rate(sum(r.hit for r in rs), len(rs))
     m["top1.pooled"] = _rate(sum(r.hit for r in recs), len(recs))
 
-    # set-recall pooled over structured tiers (D6)
-    struct = [r for r in recs if r.tier in STRUCTURED]
-    m["set_recall.pooled_structured"] = _rate(sum(r.set_hit for r in struct), len(struct))
+    # set-recall pooled over structured tiers (D6) — generation ceiling, v2 arm only
+    if has_set_recall:
+        m["set_recall.pooled_structured"] = _rate(sum(r.set_hit for r in struct), len(struct))
 
     # false-confident (committed & wrong); n/a for ncc (never commits)
     committed = [r for r in recs if r.committed]
@@ -727,7 +845,9 @@ def run_pair_arm(
     sealed: bool,
     out_dir: Path,
 ) -> tuple[ResultsFile, list[PairRecord]]:
-    recs = grade_pairs(root, arm, rung, budget, limit)
+    # set-recall is the arm-independent generation ceiling (expensive ~v1 lattice);
+    # compute it only for v2_single, where D6 consumes it.
+    recs = grade_pairs(root, arm, rung, budget, limit, compute_set_recall=(arm == "v2_single"))
     name = f"ablation_{rung}" if arm == "ablation" else arm
     metrics = pair_metrics(recs, arm, rung, PIXEL_SIZE_NM)
     rf = build_results(name, dataset, metrics, protocol, sealed=sealed)
@@ -736,23 +856,60 @@ def run_pair_arm(
     return rf, recs
 
 
-def self_test(limit: int = 2) -> int:
-    """Exercise every arm on a tiny DEV slice (no sealed access). For CI."""
+def self_test(limit: int = 3, out_dir: Path | None = None) -> int:
+    """Exhaustive DEV mirror of the sealed flow (NO sealed access): every pair arm,
+    the agent arms, grade, charts and the gallery — exactly the pipeline the sealed
+    run exercises, so the harness is validated off the sealed set. For CI + manual use.
+    """
+    from eval import charts as charts_mod
+    from eval import failure_gallery as gallery_mod
+
     protocol = load_protocol()
-    out_dir = ROOT / "results" / "_selftest"
-    budget = Budget(max_candidates=5)
+    out_dir = out_dir or (ROOT / "results" / "_selftest")
+    budget = Budget(max_candidates=20)
+    arm_metrics: dict[str, dict] = {}
+
     for arm in ("ncc", "v1", "v2_single"):
         rf, _ = run_pair_arm(
             DEV_ROOT, arm, None, budget, limit, "dev", protocol, sealed=False, out_dir=out_dir
         )
         ResultsFile.model_validate_json(rf.model_dump_json())  # schema round-trip
+        arm_metrics[rf.name] = rf.metrics
     for rung in RUNGS:
         rf, _ = run_pair_arm(
             DEV_ROOT, "ablation", rung, budget, limit, "dev", protocol, sealed=False, out_dir=out_dir
         )
         ResultsFile.model_validate_json(rf.model_dump_json())
+        arm_metrics[rf.name] = rf.metrics
+
+    # v1 (lattice) must be a DISTINCT baseline from ncc now
+    v1_pos = [(r.cx, r.cy) for r in grade_pairs(DEV_ROOT, "v1", None, budget, limit, False)]
+    ncc_pos = [(r.cx, r.cy) for r in grade_pairs(DEV_ROOT, "ncc", None, budget, limit, False)]
+    assert v1_pos != ncc_pos, "v1 lattice arm is identical to ncc — lattice path not engaged"
+    # v2_single must carry generation set-recall; ncc must not (cost opt)
+    assert "set_recall.pooled_structured" in arm_metrics["v2_single"]
+    assert "set_recall.pooled_structured" not in arm_metrics["ncc"]
+
+    # agent arms
+    agm = run_agent_arms(seed=9999, n_per_family=2)
+    agrf = build_results("agent_rules", "dev", agm, protocol, sealed=False)
+    write_results(agrf, out_dir, "agent_rules")
+    arm_metrics["agent_rules"] = agrf.metrics
+
     write_disclosures(out_dir, protocol)
-    print(f"self-test OK: arms + {len(RUNGS)} rungs validated on DEV (limit={limit})")
+    verdict = grade(arm_metrics, protocol)
+    (out_dir / "decisions.json").write_text(json.dumps(verdict, indent=2) + "\n", encoding="utf-8")
+    made = charts_mod.render_all(out_dir, out_dir)
+    assert made, "charts produced nothing"
+    gallery_mod.render(
+        gallery_mod.load_false_confident(out_dir / "v2_single.pairs.jsonl"),
+        DEV_ROOT,
+        out_dir / "v2_single_failures.png",
+    )
+    print(
+        f"self-test OK (DEV, limit={limit}): 3 arms + {len(RUNGS)} rungs + agent + grade + "
+        f"{len(made)} charts + gallery; grade decided {verdict['n_decided']}/{verdict['n_rules']}"
+    )
     return 0
 
 
@@ -776,9 +933,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.grade:
         arm_metrics: dict[str, dict] = {}
         for f in sorted(OUT_DIR.glob("*.json")):
-            if f.name == "decisions.json":
+            text = f.read_text(encoding="utf-8")
+            # Only ResultsFile arm outputs are graded; skip sidecars like
+            # decisions.json / disclosures.json (not schema driftsense.results/1).
+            try:
+                obj = json.loads(text)
+            except json.JSONDecodeError:
                 continue
-            rf = ResultsFile.model_validate_json(f.read_text(encoding="utf-8"))
+            if not isinstance(obj, dict) or obj.get("schema_id") != "driftsense.results/1":
+                continue
+            rf = ResultsFile.model_validate_json(text)
             arm_metrics[rf.name] = rf.metrics
         verdict = grade(arm_metrics, protocol)
         (OUT_DIR / "decisions.json").write_text(json.dumps(verdict, indent=2) + "\n", encoding="utf-8")
