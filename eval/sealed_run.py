@@ -333,22 +333,30 @@ def v1_lattice_result(tb: bytes, sb: bytes, budget: Budget) -> LocalizeResult:
                 return float(v)
         return 0.0
 
-    raw = list(getattr(res, "candidates", []) or [])[: budget.max_candidates]
+    # v1 returns its lattice candidates in replica (generation) order, NOT ranked:
+    # the first element is a fixed-position replica, not the engine's answer. The
+    # authoritative pick is res.pred_x/pred_y = max(candidates, key=combined). Rank
+    # the candidate list by that same combined score so cands[0] is the engine's
+    # chosen candidate, and take the committed point from pred_x/pred_y (native
+    # centre, subpixel). Positions are already native (cx = tlx + rw/2 in v1).
+    raw = sorted((getattr(res, "candidates", []) or []), key=_score, reverse=True)[: budget.max_candidates]
     cands = [
         Candidate(rank=i + 1, x_px=float(c.x) - rw / 2.0, y_px=float(c.y) - rh / 2.0, score=_score(c))
         for i, c in enumerate(raw)
     ]
+    px, py = float(getattr(res, "pred_x", float("nan"))), float(getattr(res, "pred_y", float("nan")))
+    if not (isfinite(px) and isfinite(py)):
+        px, py = (cands[0].x_px + rw / 2.0, cands[0].y_px + rh / 2.0) if cands else (rw / 2.0, rh / 2.0)
+    off = Offset(x_px=px - rw / 2.0, y_px=py - rh / 2.0)
     if not cands:
-        cands = [
-            Candidate(rank=1, x_px=float(res.pred_x) - rw / 2.0, y_px=float(res.pred_y) - rh / 2.0, score=0.0)
-        ]
+        cands = [Candidate(rank=1, x_px=off.x_px, y_px=off.y_px, score=0.0)]
     m = cands[0].score - (cands[1].score if len(cands) > 1 else cands[0].score - 1.0)
     tau = budget.tau if budget.tau is not None else _DEFAULT_TAU
     return LocalizeResult(
         engine="v1",
         engine_version="v1-munichtech-lattice",
         mode=Mode.AUTO,
-        offset=Offset(x_px=cands[0].x_px, y_px=cands[0].y_px),
+        offset=off,
         candidates=cands,
         margin=Margin(
             margin=float(m),
@@ -882,10 +890,20 @@ def self_test(limit: int = 3, out_dir: Path | None = None) -> int:
         ResultsFile.model_validate_json(rf.model_dump_json())
         arm_metrics[rf.name] = rf.metrics
 
-    # v1 (lattice) must be a DISTINCT baseline from ncc now
-    v1_pos = [(r.cx, r.cy) for r in grade_pairs(DEV_ROOT, "v1", None, budget, limit, False)]
-    ncc_pos = [(r.cx, r.cy) for r in grade_pairs(DEV_ROOT, "ncc", None, budget, limit, False)]
-    assert v1_pos != ncc_pos, "v1 lattice arm is identical to ncc — lattice path not engaged"
+    # v1 (lattice) must be a DISTINCT baseline from ncc AND actually localize: a
+    # "distinct" arm can still be wrong (e.g. reading an unranked candidate), so we
+    # require the clean tier to resolve. v1's authoritative pick nails clean pairs,
+    # so a near-zero clean top1 means the arm is reading the wrong candidate.
+    v1_rows = grade_pairs(DEV_ROOT, "v1", None, budget, limit, False)
+    ncc_rows = grade_pairs(DEV_ROOT, "ncc", None, budget, limit, False)
+    assert [(r.cx, r.cy) for r in v1_rows] != [(r.cx, r.cy) for r in ncc_rows], (
+        "v1 lattice arm is identical to ncc — lattice path not engaged"
+    )
+    v1_clean = [r for r in v1_rows if r.tier == "clean"]
+    v1_clean_top1 = sum(r.hit for r in v1_clean) / max(1, len(v1_clean))
+    assert v1_clean_top1 >= 0.8, (
+        f"v1 lattice clean top1={v1_clean_top1:.3f} too low — arm is not reading the ranked prediction"
+    )
     # v2_single must carry generation set-recall; ncc must not (cost opt)
     assert "set_recall.pooled_structured" in arm_metrics["v2_single"]
     assert "set_recall.pooled_structured" not in arm_metrics["ncc"]
