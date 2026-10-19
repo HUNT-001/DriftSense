@@ -1,0 +1,62 @@
+{
+  "rules": {
+    "D1_accuracy_floor": {
+      "pass": false,
+      "detail": "v2 top1 lower=0.38702904809919947"
+    },
+    "D2_noninferior_to_v1": {
+      "pass": false,
+      "detail": "v2 lower=0.38702904809919947 vs v1 point-0.02=0.5175"
+    },
+    "D3_beats_ncc": {
+      "pass": false,
+      "detail": "v2 point=0.4625 vs ncc+0.10=0.625"
+    },
+    "D4_per_tier_structured": {
+      "pass": false,
+      "detail": {
+        "clean": 0.9123783988027135,
+        "nominal": 0.5980603857923197,
+        "hard": 0.03957952868260638
+      }
+    },
+    "D5_per_family": {
+      "pass": false,
+      "detail": {
+        "top1.family.dram": 0.3110585761276188,
+        "top1.family.finfet": 0.40493334216542254
+      }
+    },
+    "D6_set_recall": {
+      "pass": false,
+      "detail": "set_recall_structured=0.9666666666666667"
+    },
+    "D7_false_confident": {
+      "pass": true,
+      "detail": "fc=0.0 upper=0.02344619517150519"
+    },
+    "D8_calibration": {
+      "pass": false,
+      "detail": "ece_equalcount=0.14941324606765788"
+    },
+    "D9_subpixel": {
+      "pass": null,
+      "detail": "median=None p95=None"
+    },
+    "D10_agent_false_commit": {
+      "pass": false,
+      "detail": "false_commit=0.0 upper=0.07410012966611748"
+    },
+    "D11_agent_not_worse": {
+      "pass": true,
+      "detail": "agent success lower=0.9258998703338824 vs v2 episode point=0.9166666666666666"
+    },
+    "D12_agent_budget": {
+      "pass": false,
+      "detail": "mean_steps=3.1458333333333335 mean_dose=65810000.0 budget=48000000.0"
+    }
+  },
+  "overall_pass": false,
+  "n_decided": 11,
+  "n_rules": 12
+}
