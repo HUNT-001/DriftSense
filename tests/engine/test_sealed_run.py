@@ -147,6 +147,21 @@ def test_reconstructed_rungs_run_and_are_flagged(tmp_path):
 # --------------------------------------------------------------------------- #
 # Decision battery                                                            #
 # --------------------------------------------------------------------------- #
+def test_disclosure_sidecar_and_marker(tmp_path):
+    import json
+
+    protocol = sr.load_protocol()
+    path = sr.write_disclosures(tmp_path, protocol)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["schema_id"] == "driftsense.disclosures/1"
+    assert payload["engine_pin"] == protocol["engine"]["git_sha"]
+    assert "SHA-frozen at v2-freeze" in payload["report_limitation_line"]
+    assert payload["disclosures"] and payload["disclosures"][0]["id"].startswith("sealed-metadata-read")
+    # every results file carries the provenance marker pointing at the sidecar
+    rf = sr.build_results("x", "dev", {}, protocol, sealed=False)
+    assert rf.metrics["disclosure.recorded"].value == float(len(sr.DISCLOSURES))
+
+
 def test_grade_marks_missing_inputs_na():
     protocol = sr.load_protocol()
     verdict = sr.grade({}, protocol)

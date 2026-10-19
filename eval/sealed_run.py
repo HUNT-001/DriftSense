@@ -89,6 +89,33 @@ RECONSTRUCTED_RUNGS = ("no_roughness_fusion", "lattice_only")
 
 _DEFAULT_TAU = 0.10  # mirrors driftsense.v2.engine._DEFAULT_TAU (fixed-tau rung)
 
+# Disclosures recorded with the sealed results. ResultsFile is contract-frozen
+# (extra="forbid"), so these are written to a sidecar (results/sealed/disclosures.json)
+# and each sealed ResultsFile carries a `disclosure.recorded` marker metric pointing
+# at it, rather than a new ResultsFile field (which would need a shared/contract bump).
+DISCLOSURE_REPORT_LINE = (
+    "One sealed pair's manifest metadata was read during harness development; the engine "
+    "was SHA-frozen at v2-freeze (f9395b84) and grader-enforced, so no influence on results "
+    "is possible."
+)
+DISCLOSURES = [
+    {
+        "id": "sealed-metadata-read-2026-10-19",
+        "when": "2026-10-19 (A9 harness development)",
+        "what": (
+            "While mapping the dataset layout, the runner author listed outputs/dataset_test/ "
+            "and read one pair's manifest record (seeds, n_pairs, families present, and the "
+            "gt_x/gt_y of dataset_test/ambiguous pair 0) before recognising it as the sealed set."
+        ),
+        "why_no_influence": (
+            "The engine is SHA-frozen at v2-freeze (f9395b84) and the grader refuses to run "
+            "unless the running git_sha matches, so no engine parameter could have been tuned "
+            "to the sealed data. No pair images were viewed."
+        ),
+        "report_limitation_line": DISCLOSURE_REPORT_LINE,
+    }
+]
+
 
 # --------------------------------------------------------------------------- #
 # Guard + provenance                                                          #
@@ -533,6 +560,12 @@ def build_results(
 ) -> ResultsFile:
     env = _env()
     env = env.model_copy(update={"instance_type": f"pixel_size_nm={PIXEL_SIZE_NM}"})
+    # Provenance marker: points readers at results/sealed/disclosures.json. ResultsFile
+    # is contract-frozen, so the disclosure text itself lives in the sidecar.
+    metrics = {
+        **metrics,
+        "disclosure.recorded": Metric(value=float(len(DISCLOSURES)), unit="see disclosures.json"),
+    }
     return ResultsFile(
         name=name,
         produced_by="eval/sealed_run.py",
@@ -543,6 +576,29 @@ def build_results(
         metrics=metrics,
         protocol_sha256=protocol["hash"]["value"] if sealed else protocol_sha256(),
     )
+
+
+def write_disclosures(out_dir: Path, protocol: dict) -> Path:
+    """Record the harness disclosure(s) alongside the sealed results.
+
+    A standalone sidecar (not a ResultsFile field, which is contract-frozen) so the
+    disclosure is carried with the outputs and can be rendered into the report's
+    limitations section via each disclosure's ``report_limitation_line``.
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / "disclosures.json"
+    payload = {
+        "schema_id": "driftsense.disclosures/1",
+        "produced_by": "eval/sealed_run.py",
+        "git_sha": git_sha(),
+        "created_at": datetime.now(UTC).isoformat(),
+        "engine_pin": protocol["engine"]["git_sha"],
+        "protocol_sha256": protocol["hash"]["value"],
+        "report_limitation_line": DISCLOSURE_REPORT_LINE,
+        "disclosures": DISCLOSURES,
+    }
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return path
 
 
 def write_results(rf: ResultsFile, out_dir: Path, name: str) -> Path:
@@ -695,6 +751,7 @@ def self_test(limit: int = 2) -> int:
             DEV_ROOT, "ablation", rung, budget, limit, "dev", protocol, sealed=False, out_dir=out_dir
         )
         ResultsFile.model_validate_json(rf.model_dump_json())
+    write_disclosures(out_dir, protocol)
     print(f"self-test OK: arms + {len(RUNGS)} rungs validated on DEV (limit={limit})")
     return 0
 
@@ -745,6 +802,7 @@ def main(argv: list[str] | None = None) -> int:
         f"[sealed] unlock OK · engine SHA {protocol['engine']['git_sha'][:12]} · "
         f"protocol {protocol['hash']['value'][:12]}"
     )
+    write_disclosures(OUT_DIR, protocol)
 
     budget = Budget(max_candidates=20)
     if args.arm == "agent_rules":
