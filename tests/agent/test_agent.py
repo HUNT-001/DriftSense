@@ -246,3 +246,15 @@ def test_g5_results_readback_and_invariants():
 
 def test_results_json_is_valid_json():
     json.loads((REPO / "results" / "agent" / "g5_episode.json").read_text(encoding="utf-8"))
+
+
+def test_mcp_server_registers_all_tools_when_mcp_installed():
+    """With mcp installed, the real FastMCP server must build and expose the six tools."""
+    import asyncio
+
+    pytest.importorskip("mcp.server.fastmcp")
+    from driftsense.agent.mcp_server import TOOL_NAMES, create_mcp_server
+
+    server = create_mcp_server()
+    names = {t.name for t in asyncio.run(server.list_tools())}
+    assert names == set(TOOL_NAMES)
