@@ -1,0 +1,139 @@
+{
+  "schema_id": "driftsense.results/1",
+  "name": "ablation_full",
+  "produced_by": "eval/sealed_run.py",
+  "git_sha": "f9395b84dd654ff1d537f6817c258a0f2b9373de",
+  "created_at": "2026-10-19T18:22:14.679166Z",
+  "dataset": "sealed",
+  "env": {
+    "python": "3.13.5",
+    "opencv": "4.12.0",
+    "numpy": "2.3.5",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "arch": "AMD64",
+    "instance_type": "pixel_size_nm=1.0",
+    "cool": false
+  },
+  "metrics": {
+    "top1.clean": {
+      "value": 1.0,
+      "unit": "rate",
+      "ci_low": 0.9123783988027135,
+      "ci_high": 1.0,
+      "n": 40
+    },
+    "top1.nominal": {
+      "value": 0.75,
+      "unit": "rate",
+      "ci_low": 0.5980603857923197,
+      "ci_high": 0.858128813609037,
+      "n": 40
+    },
+    "top1.hard": {
+      "value": 0.1,
+      "unit": "rate",
+      "ci_low": 0.03957952868260638,
+      "ci_high": 0.23051775227522298,
+      "n": 40
+    },
+    "top1.ambiguous": {
+      "value": 0.0,
+      "unit": "rate",
+      "ci_low": 0.0,
+      "ci_high": 0.08762160119728664,
+      "n": 40
+    },
+    "top1.family.dram": {
+      "value": 0.4125,
+      "unit": "rate",
+      "ci_low": 0.3110585761276188,
+      "ci_high": 0.5219595965410984,
+      "n": 80
+    },
+    "top1.family.finfet": {
+      "value": 0.5125,
+      "unit": "rate",
+      "ci_low": 0.40493334216542254,
+      "ci_high": 0.6189212045961893,
+      "n": 80
+    },
+    "top1.pooled": {
+      "value": 0.4625,
+      "unit": "rate",
+      "ci_low": 0.38702904809919947,
+      "ci_high": 0.5397294165386636,
+      "n": 160
+    },
+    "false_confident.pooled": {
+      "value": 0.0,
+      "unit": "rate",
+      "ci_low": 0.0,
+      "ci_high": 0.02344619517150519,
+      "n": 160
+    },
+    "false_confident.clean": {
+      "value": 0.0,
+      "unit": "rate",
+      "ci_low": 0.0,
+      "ci_high": 0.08762160119728664,
+      "n": 40
+    },
+    "false_confident.nominal": {
+      "value": 0.0,
+      "unit": "rate",
+      "ci_low": 0.0,
+      "ci_high": 0.08762160119728664,
+      "n": 40
+    },
+    "false_confident.hard": {
+      "value": 0.0,
+      "unit": "rate",
+      "ci_low": 0.0,
+      "ci_high": 0.08762160119728664,
+      "n": 40
+    },
+    "false_confident.ambiguous": {
+      "value": 0.0,
+      "unit": "rate",
+      "ci_low": 0.0,
+      "ci_high": 0.08762160119728664,
+      "n": 40
+    },
+    "commits.n": {
+      "value": 0.0,
+      "unit": "count",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 160
+    },
+    "ece": {
+      "value": 0.14941324606765788,
+      "unit": "fraction",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 160
+    },
+    "ece.binning_equalcount": {
+      "value": 1.0,
+      "unit": "equal-count",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "full.reconstructed": {
+      "value": 0.0,
+      "unit": "bool",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    },
+    "disclosure.recorded": {
+      "value": 4.0,
+      "unit": "see disclosures.json",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    }
+  },
+  "protocol_sha256": "776ed76e7434087905e0a309ddc64a5b79689e8331ecd43936345a3851f6d6c0"
+}
