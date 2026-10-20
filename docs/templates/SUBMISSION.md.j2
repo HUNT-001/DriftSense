@@ -1,0 +1,325 @@
+{#- requires: sealed/v1 sealed/ncc sealed/v2_single sealed/agent_rules sealed/decisions sealed/disclosures accuracy/g2 -#}
+{#-
+  SUBMISSION.md — owner: B (B7). Renders to the repo-root SUBMISSION.md (Devpost text);
+  root templates render only with --include-readme or once the root file is generated.
+
+  Sources (metric names exactly as written by eval/sealed_run.py and eval/gate_g2.py):
+    results/sealed/{v1,ncc,v2_single}.json   top1.pooled, top1.<tier>, false_confident.pooled,
+                                             commits.n, set_recall.*, ece        (dataset sealed)
+    results/sealed/ablation_<rung>.json      same keys + <rung>.reconstructed (bool)
+    results/sealed/agent_rules.json          n_episodes, dose_budget, <arm>.{success,
+                                             false_commit, escalation, mean_steps, mean_dose}
+    results/sealed/decisions.json            plain JSON: rules.<ID>.{pass,detail}, overall_pass,
+                                             n_decided, n_rules (read with q()/flag()/keys())
+    results/sealed/disclosures.json          plain JSON: protocol_sha256, engine_pin,
+                                             report_limitation_line, disclosures[].id
+    results/accuracy/g2.json                 DEV latency / speed-up / G2 gate flags (dataset dev)
+    results/bench/cool_bench.json            optional: COOL campaign (see COOL_EVIDENCE.md.j2)
+  Conclusions (below / above / overlap, pass / fail) come from logic helpers on the JSON,
+  never from prose. DEV and SEALED numbers never share a sentence.
+-#}
+{% set V1 = "sealed/v1" %}{% set NCC = "sealed/ncc" %}{% set V2 = "sealed/v2_single" %}
+{% set AG = "sealed/agent_rules" %}{% set D = "sealed/decisions.json" %}{% set G2 = "accuracy/g2" %}
+{% set B = "bench/cool_bench" %}
+{% set TIERS = [("clean", "Clean"), ("nominal", "Nominal"), ("hard", "Hard"), ("ambiguous", "Ambiguous")] %}
+# DriftSense Pilot — Devpost submission
+
+## Elevator pitch
+
+On a periodic semiconductor array every copy of a structure looks the same, so a
+template matcher can confidently send the microscope to the wrong copy.
+DriftSense Pilot reads each edge's unique roughness with an OpenCV 5 pipeline,
+says how sure it is, and lets an agent re-image or hand the decision to a human
+instead of guessing.
+
+## The problem
+
+Scanning electron microscopes navigate to a measurement site by matching a
+reference patch against a search image. On FinFET fins, DRAM-like contact arrays
+and line gratings the patch matches a whole lattice of near-identical replicas.
+A confident commit to the wrong replica is not a ranking error: the stage moves
+to the wrong cell and every downstream measurement inherits the offset. Asking
+for another image is cheap by comparison.
+
+## What it does
+
+- **Localises** a reference patch in a periodic search image with a ten-stage
+  OpenCV pipeline (S0–S9) that scores candidates on their line-edge-roughness
+  residual, at lattice-consistent offsets only, and returns ranked candidates, a
+  calibrated margin, a commit-or-escalate decision and explainability images.
+- **Acts** through an active-perception agent that drives a virtual SEM: it
+  raises dwell, widens the field of view or re-localises when the evidence is
+  weak, commits a stage move only when the margin clears a calibrated threshold,
+  and otherwise escalates with an approval card for a human.
+- **Runs** as a web app on AWS: a static UI, an HTTP API on arm64 Lambda, and a
+  Graviton worker built from the COOL 3.1 AMI, plus an MCP server that exposes
+  the same guarded tools to any MCP client.
+
+## How we built it
+
+### OpenCV 5 usage
+
+★ marks KleidiCV-listed operations that COOL can accelerate on Graviton. The
+full call list per module is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+| Stage | Purpose | OpenCV calls |
+|---|---|---|
+| S0 Ingest / QC | Decode, grayscale, mean/std, saturation, SNR proxy | `imdecode`, `cvtColor` ★, `meanStdDev`, `minMaxLoc` ★ |
+| S1 Lattice | Lattice vectors, period and angle in the Fourier domain | `getOptimalDFTSize`, `createHanningWindow`, `dft`, `magnitude`, `log` |
+| S2 Rectify | De-rotation hypotheses on a coarse copy | `pyrDown` ★, `getRotationMatrix2D`, `warpPerspective` ★ |
+| S3 Roughness residual | Remove the ideal periodic pattern, keep edge roughness | `sepFilter2D` ★, `GaussianBlur` ★, `Sobel` ★, `erode` ★, `dilate` ★, `magnitude` |
+| S4 Candidate scoring | Residual matching at lattice-consistent offsets | `matchTemplate` (`TM_CCOEFF_NORMED`), `dilate` ★ NMS, `minMaxLoc` ★ |
+| S5 DRAM contour | Planned contact-array fingerprint | scaffold in this build, not on the path |
+| S6 Cascade | Re-rank a close short-list with the frozen v1 fingerprint | NumPy |
+| S7 Confidence | Robust z-margin and isotonic calibration | NumPy |
+| S8 Subpixel | Final sub-pixel offset | `phaseCorrelate`, `findTransformECC` |
+| S9 Explain | Heatmaps, candidate gallery, overlay | `applyColorMap`, `addWeighted`, `drawMarker`, `putText`, `imencode` |
+
+The stack pins `opencv-python-headless` 5.0.0.93 for development and the
+COOL 3.1 build on the worker. The evaluation numbers below were produced on a
+development machine whose results files record OpenCV
+{{ meta(V2, "env.opencv") }} on {{ meta(V2, "env.arch") }}, not on the COOL worker.
+
+### AWS and COOL
+
+CloudFront and a private S3 bucket serve the UI. An API Gateway HTTP API
+invokes a FastAPI app on arm64 Lambda (via Mangum) that presigns uploads,
+records jobs in DynamoDB and enqueues them on SQS with a dead-letter queue. An
+Auto Scaling group of c8g.large Graviton workers built from the COOL 3.1 AMI
+runs the v2 engine, the agent and the virtual SEM, importing OpenCV from the
+COOL environment only. Results go to encrypted S3 with a short lifecycle;
+per-stage metrics, a dashboard, a canary and alarms live in CloudWatch, with an
+AWS Budgets alert on cost. GitHub Actions deploys the CDK app through OIDC. See
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+{% if exists(B) and has(B, "speedup.graviton-cool_vs_graviton-pip.kleidicv.geomean.tN") %}
+{% set kc = "speedup.graviton-cool_vs_graviton-pip.kleidicv.geomean.tN" %}
+{% set kv = ci_verdict(B, kc) %}
+COOL versus PyPI OpenCV on the same Graviton instance, KleidiCV-listed
+operations, all threads (geometric mean):
+{{ m(B, kc, fmt="x", ci=true) }}{% if kv == "higher" %}, so COOL is faster{% elif kv == "lower" %}, so COOL is slower{% else %}, which is no measurable difference{% endif %}.
+The full campaign, including controls, equality checks and cost per thousand
+localizations, is in [docs/COOL_EVIDENCE.md](docs/COOL_EVIDENCE.md).
+{% else %}
+**COOL benchmark: campaign pending.** The three-arm COOL campaign (x86 with
+PyPI OpenCV, Graviton with PyPI OpenCV, Graviton with COOL) has not run yet, so
+this submission makes no COOL speed-up or cost claim. The method and the
+reproduction steps are in [docs/COOL_EVIDENCE.md](docs/COOL_EVIDENCE.md), which
+is regenerated from the benchmark results file once it exists.
+{% endif %}
+
+### Agent loop and MCP
+
+A deterministic, auditable rules policy reads the margin, SNR, lattice
+uncertainty and the remaining step and dose budget after every localisation and
+picks the next tool: more dwell, a wider field of view, more rectification
+hypotheses, a refinement pass, a commit, or a human-approval request. The
+runner, not the policy, enforces the safety gates: it refuses any commit below
+the calibrated threshold, caps the number of steps, applies a dose budget and a
+per-tool timeout, and logs every step as a JSONL trace whose commit event
+records the margin and threshold that justified it. An optional LLM planner may
+only propose perception tools. The same six pydantic-validated tools are served
+over MCP with FastMCP (`python -m driftsense.agent.mcp_server`).
+
+## Evaluation
+
+### Sealed, pre-registered evaluation
+
+The protocol and its decision rules were hash-locked before any sealed pair was
+scored (protocol SHA `{{ sealed/disclosures.json | protocol_sha256 }}`, engine pinned at
+`{{ sealed/disclosures.json | engine_pin }}`). The grader refuses to run unless the engine's
+git SHA matches the pin. Intervals are Wilson score 95% CI on
+{{ n(V2, "top1.pooled", label=false) }} sealed pairs.
+
+| Arm | Top-1, pooled | False-confident rate, pooled | Commits at the threshold |
+|---|---|---|---|
+| NCC baseline | {{ m(NCC, "top1.pooled", fmt="pct", ci=true, label=false) }} | not applicable (no confidence output) | not applicable |
+| v1 lattice (prior work) | {{ m(V1, "top1.pooled", fmt="pct", ci=true, label=false) }} | {{ m(V1, "false_confident.pooled", fmt="pct", ci=true, label=false) }} | {{ m(V1, "commits.n", fmt="int", label=false) }} |
+| v2 single-shot (this work) | {{ m(V2, "top1.pooled", fmt="pct", ci=true, label=false) }} | {{ m(V2, "false_confident.pooled", fmt="pct", ci=true, label=false) }} | {{ m(V2, "commits.n", fmt="int", label=false) }} |
+
+| Tier | NCC top-1 | v1 top-1 | v2 top-1 | v2 set-recall |
+|---|---|---|---|---|
+{% for t, title in TIERS %}
+| {{ title }} | {{ m(NCC, "top1." ~ t, fmt="pct", ci=true, label=false) }} | {{ m(V1, "top1." ~ t, fmt="pct", ci=true, label=false) }} | {{ m(V2, "top1." ~ t, fmt="pct", ci=true, label=false) }} | {{ m(V2, "set_recall." ~ t, fmt="pct", ci=true, label=false) }} |
+{% endfor %}
+
+Both tables are from the sealed split.
+
+**What the sealed numbers say, including where v2 loses:**
+
+{% set v2t = val(V2, "top1.pooled") %}
+{% if v2t < val(V1, "top1.pooled") and v2t < val(NCC, "top1.pooled") %}
+- **v2 single-shot top-1 is below both baselines.** Its pooled top-1 is
+  {{ m(V2, "top1.pooled", fmt="pct", ci=true) }} against
+  {{ m(V1, "top1.pooled", fmt="pct") }} for v1 and
+  {{ m(NCC, "top1.pooled", fmt="pct") }} for NCC{% if val(V2, "top1.pooled", "ci_high") >= val(V1, "top1.pooled", "ci_low") %}; the intervals overlap with v1's{% endif %}.
+  v2 is not a better single-shot point estimator.
+{% else %}
+- v2 single-shot pooled top-1 is {{ m(V2, "top1.pooled", fmt="pct", ci=true) }},
+  against {{ m(V1, "top1.pooled", fmt="pct") }} for v1 and
+  {{ m(NCC, "top1.pooled", fmt="pct") }} for NCC.
+{% endif %}
+- **The right answer is almost always in the candidate set**: v2 set-recall on
+  structured pairs is {{ m(V2, "set_recall.pooled_structured", fmt="pct", ci=true) }}.
+  What is hard is telling the true copy from its replicas.
+{% if val(V2, "commits.n") == 0 %}
+- **v2 abstains on every sealed pair.** At the calibrated threshold it committed
+  on {{ m(V2, "commits.n", fmt="int") }} pairs, so its false-confident rate of
+  {{ m(V2, "false_confident.pooled", fmt="pct") }} reflects abstention, not
+  accuracy: on its own, v2 would send every sealed pair to re-acquisition or a
+  human. That is the job of the agent below.
+{% else %}
+- v2 committed on {{ m(V2, "commits.n", fmt="int") }} pairs at the calibrated
+  threshold, with a false-confident rate of
+  {{ m(V2, "false_confident.pooled", fmt="pct", ci=true) }}.
+{% endif %}
+- **Calibration is not good enough yet**: equal-count ECE is
+  {{ m(V2, "ece", fmt="f3") }}{% if flag(D, "rules.D8_calibration.pass") == false %},
+  and the pre-registered calibration rule failed{% endif %}.
+- **The ambiguous tier is at the floor for every engine** (v2 top-1
+  {{ m(V2, "top1.ambiguous", fmt="pct") }}): when two replicas are
+  indistinguishable in one frame, no single-shot matcher can break the tie.
+
+### The agent on the sealed episodes
+
+Virtual-SEM episodes seeded from the sealed seed: {{ m(AG, "n_episodes", fmt="int") }}.
+An episode is a success only if the arm commits a corrective stage move whose
+drift estimate is within the grading tolerance of the true drift; an escalation
+is never a success. Intervals are Wilson 95% CI. Both arms commit on the raw
+rank-1/rank-2 margin threshold the agent uses, not on the calibrated threshold
+of the pair evaluation above, which is why single-shot v2 commits here.
+
+| Arm | Success | False commit | Escalation | Mean acquisitions | Mean dose (electrons) |
+|---|---|---|---|---|---|
+| v2 single-shot | {{ m(AG, "v2_single.success", fmt="pct", ci=true, label=false) }} | {{ m(AG, "v2_single.false_commit", fmt="pct", ci=true, label=false) }} | {{ m(AG, "v2_single.escalation", fmt="pct", ci=true, label=false) }} | {{ m(AG, "v2_single.mean_steps", fmt="f2", label=false) }} | {{ m(AG, "v2_single.mean_dose", fmt="int", label=false) }} |
+| Agent, rules policy | {{ m(AG, "agent_rules.success", fmt="pct", ci=true, label=false) }} | {{ m(AG, "agent_rules.false_commit", fmt="pct", ci=true, label=false) }} | {{ m(AG, "agent_rules.escalation", fmt="pct", ci=true, label=false) }} | {{ m(AG, "agent_rules.mean_steps", fmt="f2", label=false) }} | {{ m(AG, "agent_rules.mean_dose", fmt="int", label=false) }} |
+
+{% if val(AG, "agent_rules.mean_dose") > val(AG, "dose_budget") %}
+The agent buys its success with dose: its mean dose exceeds the pre-registered
+per-episode budget of {{ m(AG, "dose_budget", fmt="int") }} electrons, so the
+budget rule fails. These rates are over the agent episode set only, not over all
+sealed pairs.
+{% else %}
+The agent stays within the pre-registered per-episode budget of
+{{ m(AG, "dose_budget", fmt="int") }} electrons. These rates are over the agent
+episode set only, not over all sealed pairs.
+{% endif %}
+
+### Ablations on the sealed split
+
+| Engine variant | Top-1, pooled | False-confident rate, pooled | Commits |
+|---|---|---|---|
+{% for rung, title in [("full", "Full v2"), ("no_cascade", "Without the S6 cascade"), ("no_calibration", "Without calibration"), ("no_roughness_fusion", "Without roughness fusion"), ("lattice_only", "Lattice candidates only"), ("no_contour_subpixel", "Without contour and subpixel")] %}
+{% set A = "sealed/ablation_" ~ rung %}
+| {{ title }}{% if val(A, rung ~ ".reconstructed") %} (reconstructed approximation){% endif %} | {{ m(A, "top1.pooled", fmt="pct", ci=true, label=false) }} | {{ m(A, "false_confident.pooled", fmt="pct", ci=true, label=false) }} | {{ m(A, "commits.n", fmt="int", label=false) }} |
+{% endfor %}
+
+All ablation rows are from the sealed split. Reconstructed rows approximate the
+removal of a stage with an engine configuration rather than a code change.
+{% set full = val("sealed/ablation_full", "top1.pooled") %}
+{% for rung, title in [("no_roughness_fusion", "without roughness fusion"), ("lattice_only", "with lattice candidates only"), ("no_cascade", "without the cascade")] if val("sealed/ablation_" ~ rung, "top1.pooled") > full %}
+{% if loop.first %}
+
+Not every stage earns its place on top-1:
+{% endif %}
+the variant {{ title }} scores a higher pooled top-1 than the full engine
+({{ m("sealed/ablation_" ~ rung, "top1.pooled", fmt="pct") }} against
+{{ m("sealed/ablation_full", "top1.pooled", fmt="pct") }}){{ "." if loop.last else ";" }}
+{% endfor %}
+
+### Pre-registered decision gate
+
+{% set ovp = flag(D, "overall_pass") %}
+**Overall pass: {{ sealed/decisions.json | overall_pass }}.**
+{% if not ovp %}
+The sealed gate did not pass.
+{% endif %}
+{{ sealed/decisions.json | n_decided | int }} of {{ sealed/decisions.json | n_rules | int }}
+rules could be decided. We report the gate as it was pre-registered rather than
+re-defining it around the result.
+
+| Rule | Result | Recorded by the grader |
+|---|---|---|
+{% for r in keys(D, "rules") %}
+{% set pth = "rules." ~ r %}
+{% set ok = flag(D, pth ~ ".pass") %}
+| `{{ r }}` | {% if ok is none %}not decided{% elif ok %}pass{% else %}**fail**{% endif %} | {% if kind(D, pth ~ ".detail") == "object" %}{% for k2 in keys(D, pth ~ ".detail") %}{{ k2 }}: {{ q(D, pth ~ ".detail['" ~ k2 ~ "']", code=true) }}{{ "; " if not loop.last }}{% endfor %}{% else %}{{ q(D, pth ~ ".detail", code=true) }}{% endif %} |
+{% endfor %}
+
+**Disclosures.** Every deviation during the sealed run is recorded in
+`results/sealed/disclosures.json`
+({% for i in keys("sealed/disclosures.json", "disclosures") %}{{ q("sealed/disclosures.json", "disclosures." ~ i ~ ".id", code=true) }}{{ ", " if not loop.last }}{% endfor %}).
+Their limitation lines, verbatim:
+
+- {{ sealed/disclosures.json | report_limitation_line }}
+{% for i in keys("sealed/disclosures.json", "disclosures") if exists("sealed/disclosures.json", "disclosures." ~ i ~ ".report_limitation_line") %}
+{% if q("sealed/disclosures.json", "disclosures." ~ i ~ ".report_limitation_line").split("<!--")[0] != q("sealed/disclosures.json", "report_limitation_line").split("<!--")[0] %}
+- {{ q("sealed/disclosures.json", "disclosures." ~ i ~ ".report_limitation_line") }}
+{% endif %}
+{% endfor %}
+
+### Development set (DEV, not sealed)
+
+Latency per pair on the development machine: v2
+{{ m(G2, "v2_latency_ms", fmt="ms") }}, v1 lattice path
+{{ m(G2, "v1_lattice_latency_ms", fmt="ms") }}, v1 NCC path
+{{ m(G2, "v1_ncc_latency_ms", fmt="ms") }}. That is
+{{ m(G2, "speedup_vs_v1_lattice", fmt="x") }} against the v1 lattice path
+and {{ m(G2, "speedup_vs_v1_ncc", fmt="x") }} against the NCC path{% if val(G2, "speedup_vs_v1_ncc") < 1 %}, so v2 is slower than NCC{% endif %}.
+{% if not val(G2, "G2_OVERALL_PASS") %}
+The development gate G2 did not pass either.
+{% if not val(G2, "C2_top1_within_v1_ci") %}
+Its top-1 criterion failed: v2's top-1 on the development split,
+{{ m(G2, "v2_top1_production", fmt="pct", ci=true) }}, is outside v1's interval
+({{ m(G2, "v1_top1", fmt="pct", ci=true) }}).
+{% endif %}
+{% endif %}
+
+## Limitations
+
+- All quantitative results use synthetic images from our virtual SEM; nothing
+  has been validated on a real instrument or fab data.
+- The evaluation ran on a development x86 machine, not on the COOL worker; the
+  COOL campaign is reported separately in
+  [docs/COOL_EVIDENCE.md](docs/COOL_EVIDENCE.md).
+{% if v2t < val(V1, "top1.pooled") and v2t < val(NCC, "top1.pooled") %}
+- v2 single-shot top-1 is below the v1 and NCC baselines.
+{% endif %}
+{% if val(V2, "commits.n") == 0 %}
+- At the calibrated threshold v2 alone abstains on every sealed pair. The agent
+  episodes commit on the agent's raw-margin threshold instead, so the agent's
+  success is not a success rate over the sealed pairs.
+{% endif %}
+{% if val(AG, "agent_rules.mean_dose") > val(AG, "dose_budget") %}
+- The agent's mean dose exceeds the pre-registered per-episode budget; the
+  evaluation did not enforce the budget in the runner.
+{% endif %}
+- The DRAM contour stage (S5) is a scaffold in this build.
+{% if not ovp %}
+- The pre-registered sealed gate did not pass; see the table above.
+{% endif %}
+
+## Responsible use
+
+See [docs/RESPONSIBLE_USE.md](docs/RESPONSIBLE_USE.md): synthetic data only,
+human approval for every uncertain stage move, runner-enforced safety gates,
+dose limits, seven-day retention, not validated on production tools.
+
+## Prior work
+
+DriftSense v1 (MunichTech) is frozen under `driftsense/v1/` and tagged
+`v1-munichtech`; it is the accuracy baseline above, not a contribution of this
+project. The prior-work disclosure is `docs/PRIOR_WORK.md`.
+
+## Links and Devpost checklist
+
+- Repository: https://github.com/HUNT-001/DriftSense
+- Live demo: the CloudFront URL from the deploy outputs (see `infra/README.md`) is added here at submission.
+- Video: the link is added here at submission.
+- [ ] OpenCV 5 usage (table above)
+- [ ] AWS component (live endpoint)
+- [ ] Architecture diagram showing OpenCV 5, AWS, COOL and the agent ([docs/ARCHITECTURE.md](docs/ARCHITECTURE.md))
+- [ ] Measurable evaluation with confidence intervals (above)
+- [ ] Limitations and responsible use (above)
+- [ ] Video showing the team, the working app, the architecture and the results
+- [ ] Opt in to both special awards (COOL on Graviton; Agentic Vision)

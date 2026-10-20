@@ -1,0 +1,225 @@
+{#-
+  COOL_EVIDENCE.md — owner: B (B6/B7). Renders to docs/COOL_EVIDENCE.md.
+  Expected results file: results/bench/cool_bench.json, written by bench/cool/report.py
+  (dataset="bench", env = the graviton-cool arm). Its sidecar results/bench/cool_bench_meta.json
+  (per-arm cv2.__file__, instance type, COOL flag, comparison rows) is evidence, not a
+  ResultsFile; render_docs skips *_meta.json files.
+
+  Key scheme (arms: x86-pip, graviton-pip, graviton-cool, optional graviton-cool-large;
+  comparisons <candidate>_vs_<baseline>; speed-up = baseline median / candidate median):
+    speedup.<cmp>.<kleidicv|control|numpy>.geomean.<t1|tN>        unit x, bootstrap CI
+    speedup.<cmp>.<group>.<Op>.<variant>.<t1|tN>                   per-op, unit x, CI
+    speedup.<cmp>.stage.<stage>.<t1|tN>   (stage.total.t1 ...)    unit x, CI
+    speedup.<cmp>.e2e.latency.tN | e2e.loaded_latency.t1 | e2e.throughput (n=1, no CI)
+    equality.<cmp>.offset.{pass, max_abs_diff_px, tol_px, n_exceeding, n_missing}
+    equality.<cmp>.scoremap.<name>.{max_abs_diff, sha256_equal}
+    cost.<arm>.{usd_per_1000, usd_per_hour}
+    arm.<arm>.e2e.{latency.tN.median_ms, latency.tN.p95_ms, throughput.jobs_per_hour}
+    arm.<arm>.stage.total.<t1|tN>.median_ms
+    meta.n_arms, meta.git_sha_consistent (bool)
+  Conclusions are never hard-coded: every "faster / slower / no measurable difference"
+  comes from ci_verdict() on the CI in the JSON.
+
+  No `requires:` on purpose: until results/bench/cool_bench.json exists, exists(B) is
+  false and the page renders the "campaign pending" branch (method + how to reproduce,
+  no numbers, no missing-markers). Once the file lands the evidence branch renders.
+
+  CONTRACT GAP (flagged to A): ResultsFile has no string slot for the AMI ID or the
+  cv2.__file__ path; they live in the sidecar and the evidence pack, linked below.
+-#}
+{% set B = "bench/cool_bench" %}
+{% set ARMS = [
+  ("x86-pip", "x86, pip OpenCV"),
+  ("graviton-pip", "Graviton, pip OpenCV"),
+  ("graviton-cool", "Graviton, COOL"),
+  ("graviton-cool-large", "Graviton, COOL, production worker size"),
+] %}
+{% set CMPS = [
+  ("graviton-cool_vs_graviton-pip", "COOL gain on the same Graviton hardware"),
+  ("graviton-cool_vs_x86-pip", "COOL on Graviton versus pip OpenCV on x86"),
+  ("graviton-pip_vs_x86-pip", "Graviton versus x86 with the same pip OpenCV"),
+] %}
+{% set WORDS = {
+  "higher": "candidate faster",
+  "lower": "candidate slower",
+  "includes": "no measurable difference",
+  "no_ci": "single measurement, no interval",
+} %}
+{% macro sx(metric) -%}
+{% if not has(B, metric) %}not measured{% else %}
+{% set v = ci_verdict(B, metric) %}
+{% if v == "no_ci" %}{{ m(B, metric, fmt="x") }}{% else %}{{ m(B, metric, fmt="x", ci=true) }}{% endif %}, {{ WORDS[v] }}
+{%- endif %}
+{%- endmacro %}
+# COOL on Graviton — benchmark evidence
+
+{% if not exists(B) %}
+**Status: benchmark campaign pending.** The COOL campaign has not run yet, so
+this page reports no COOL, Graviton or cost numbers. It is regenerated from
+`results/bench/cool_bench.json` as soon as `bench/cool/report.py` writes that
+file; nothing on this page is typed by hand.
+
+Until then, no speed-up or cost claim for COOL appears anywhere in the
+submission. The accuracy results in [SUBMISSION.md](../SUBMISSION.md) were
+measured on a development machine, not on the COOL worker.
+
+## What the campaign will measure
+
+- **Three arms on identical input bytes**: `x86-pip` (c7i.4xlarge, OpenCV from
+  PyPI), `graviton-pip` (c8g.4xlarge, OpenCV from PyPI) and `graviton-cool`
+  (c8g.4xlarge, COOL 3.1 AMI, OpenCV from `/opt/cool`). An optional
+  `graviton-cool-large` arm measures the production worker configuration.
+- **Per-operation microbenchmarks** of every OpenCV call in S0–S9 at the
+  production dtype, size and kernel, grouped into KleidiCV-listed operations,
+  control operations (OpenCV calls without KleidiCV kernels) and a NumPy
+  negative control that COOL cannot touch.
+- **Per-stage timings** from `LocalizeResult.timings`, **end-to-end latency**
+  (median and p95) and **throughput** with a process pool.
+- **Result equality** between arms: offsets within a pixel tolerance and score
+  maps compared by maximum difference and hash.
+- **Cost per thousand localizations** = (EC2 hourly price + COOL hourly price)
+  / measured jobs per hour, times one thousand, with prices and their sources
+  from `bench/cool/prices.json`.
+
+## How results will be reported
+
+Warm-up runs come first, then timed runs; medians carry ninety-five percent
+percentile-bootstrap confidence intervals, at one thread and at all vCPUs. A
+**speed-up** is the baseline median divided by the candidate median. When the
+interval contains parity the page says **no measurable difference**, whatever
+the point estimate; a gain on a control operation or on the NumPy control is
+treated as a warning about the environment, not as a COOL result. Every verdict
+is computed from the interval in the JSON, never written in the template.
+
+## How to reproduce
+
+Deploy the ephemeral bench stack (see `infra/README.md`); each instance runs
+one arm, uploads its outputs to S3 and terminates itself:
+
+```bash
+cd infra && npx --yes aws-cdk@2 deploy DriftSense-Bench -c bench=true   -c bench_run_id=<run_id> -c cool_ami_id=<COOL 3.1 AMI in ap-south-1>
+# on each instance (done by user-data):
+bash bench/cool/run_all.sh <arm_label> s3://<data bucket>/bench/<run_id>/<arm_label>/
+```
+
+Then download the arm directories and build the report and this page:
+
+```bash
+python -m bench.cool.report --arm out/x86-pip --arm out/graviton-pip   --arm out/graviton-cool --price-c7i <usd_per_hour> --out results/bench/
+python scripts/render_docs.py && python scripts/check_claims.py
+```
+
+A local plumbing check (no timings worth reporting) runs with
+`python -m bench.cool.microbench --quick` and `python -m bench.cool.stagebench --quick`.
+{% else %}
+
+All numbers on this page come from `results/bench/cool_bench.json`, produced by
+`{{ meta(B, "produced_by") }}` at commit {{ meta(B, "git_sha") }} on
+{{ meta(B, "created_at", fmt="date") }}. The environment recorded in the file is
+the COOL arm: OpenCV {{ meta(B, "env.opencv") }}, {{ meta(B, "env.arch") }}, COOL
+flag {{ meta(B, "env.cool") }}. The run compared {{ m(B, "meta.n_arms", fmt="int") }} arms;
+{% if val(B, "meta.git_sha_consistent") %}
+every arm ran the same commit.
+{% else %}
+**the arms did not all run the same commit, so the comparisons below are not like for like.**
+{% endif %}
+
+## Method
+
+Every arm processes the same input bytes. Warm-up runs come first, then timed
+runs; we report medians with ninety-five percent percentile-bootstrap
+confidence intervals,
+at one thread (`t1`) and at all vCPUs (`tN`). A **speed-up** is the baseline
+median divided by the candidate median, so above parity means the candidate is
+faster. When the interval contains parity we say **no measurable difference**,
+whatever the point estimate. Operations are grouped into **KleidiCV-listed**
+operations (the ones COOL can accelerate on Arm), **control** operations
+(OpenCV calls without KleidiCV kernels) and a **NumPy negative control** that
+COOL cannot touch.
+
+{% for c, title in CMPS %}
+## {{ title }}
+
+Candidate `{{ c.split("_vs_")[0] }}` against baseline `{{ c.split("_vs_")[1] }}`.
+
+{% if not has(B, "speedup." ~ c ~ ".kleidicv.geomean.tN") %}
+Not measured in this run.
+
+{% else %}
+{% set kv = ci_verdict(B, "speedup." ~ c ~ ".kleidicv.geomean.tN") %}
+{% if kv == "higher" %}
+Headline: on KleidiCV-listed operations with all threads the candidate is
+faster, {{ m(B, "speedup." ~ c ~ ".kleidicv.geomean.tN", fmt="x", ci=true) }}.
+{% elif kv == "lower" %}
+Headline: on KleidiCV-listed operations with all threads the candidate is
+slower, {{ m(B, "speedup." ~ c ~ ".kleidicv.geomean.tN", fmt="x", ci=true) }}.
+{% else %}
+Headline: on KleidiCV-listed operations with all threads there is no
+measurable difference ({{ m(B, "speedup." ~ c ~ ".kleidicv.geomean.tN", fmt="x", ci=true) }}).
+{% endif %}
+
+| Measure | One thread | All threads |
+|---|---|---|
+| KleidiCV-listed ops, geometric mean | {{ sx("speedup." ~ c ~ ".kleidicv.geomean.t1") }} | {{ sx("speedup." ~ c ~ ".kleidicv.geomean.tN") }} |
+| Control ops, geometric mean | {{ sx("speedup." ~ c ~ ".control.geomean.t1") }} | {{ sx("speedup." ~ c ~ ".control.geomean.tN") }} |
+| NumPy negative control | {{ sx("speedup." ~ c ~ ".numpy.geomean.t1") }} | {{ sx("speedup." ~ c ~ ".numpy.geomean.tN") }} |
+| Engine stages, total | {{ sx("speedup." ~ c ~ ".stage.total.t1") }} | {{ sx("speedup." ~ c ~ ".stage.total.tN") }} |
+| End-to-end latency | — | {{ sx("speedup." ~ c ~ ".e2e.latency.tN") }} |
+| End-to-end latency under load | {{ sx("speedup." ~ c ~ ".e2e.loaded_latency.t1") }} | — |
+| Throughput | — | {{ sx("speedup." ~ c ~ ".e2e.throughput") }} |
+
+{% set nv = ci_verdict(B, "speedup." ~ c ~ ".numpy.geomean.tN") %}
+{% if nv in ("higher", "lower") %}
+**Caution:** the NumPy negative control moved, so part of the differences
+above may come from the machine or the environment rather than from OpenCV.
+
+{% endif %}
+{% set eq = "equality." ~ c ~ ".offset." %}
+{% if has(B, eq ~ "pass") %}
+Equality of results: {% if val(B, eq ~ "pass") %}**passed**{% else %}**FAILED**{% endif %}.
+The largest offset difference between the two arms is
+{{ m(B, eq ~ "max_abs_diff_px", fmt="raw") }} px against a tolerance of
+{{ m(B, eq ~ "tol_px", fmt="raw") }} px; pairs over tolerance:
+{{ m(B, eq ~ "n_exceeding", fmt="int") }}; pairs missing from one arm:
+{{ m(B, eq ~ "n_missing", fmt="int") }}.
+
+{% endif %}
+{% endif %}
+{% endfor %}
+## Per-arm latency and throughput
+
+| Arm | End-to-end median latency, all threads | p95 | Engine stages, one thread | Throughput, jobs per hour |
+|---|---|---|---|---|
+{% for a, title in ARMS if has(B, "arm." ~ a ~ ".e2e.latency.tN.median_ms") %}
+| `{{ a }}` ({{ title }}) | {{ m(B, "arm." ~ a ~ ".e2e.latency.tN.median_ms", fmt="ms", ci=true) }} | {{ m(B, "arm." ~ a ~ ".e2e.latency.tN.p95_ms", fmt="ms") }} | {{ m(B, "arm." ~ a ~ ".stage.total.t1.median_ms", fmt="ms", ci=true) }} | {{ m(B, "arm." ~ a ~ ".e2e.throughput.jobs_per_hour", fmt="int") }} |
+{% endfor %}
+
+## Cost
+
+Cost per thousand localizations = (EC2 hourly price + COOL hourly price) /
+measured jobs per hour, times one thousand.
+
+| Arm | Hourly price (EC2 + COOL) | Cost per thousand localizations |
+|---|---|---|
+{% for a, title in ARMS if has(B, "cost." ~ a ~ ".usd_per_1000") %}
+| `{{ a }}` ({{ title }}) | {{ m(B, "cost." ~ a ~ ".usd_per_hour", fmt="usd") }} | {{ m(B, "cost." ~ a ~ ".usd_per_1000", fmt="usd") }} |
+{% endfor %}
+
+## Per-operation detail: COOL versus pip on Graviton, all threads
+
+{% set pre = "speedup.graviton-cool_vs_graviton-pip.kleidicv." %}
+| KleidiCV-listed operation | Speed-up |
+|---|---|
+{% for name in metrics(B, pre) if name.endswith(".tN") and ".geomean." not in name %}
+| `{{ name[pre|length:-3] }}` | {{ sx(name) }} |
+{% endfor %}
+
+## Evidence pack
+
+The AMI ID, `cv2.__version__`, the `cv2.__file__` path of every arm (which must
+be under `/opt/cool` for a COOL arm), instance types, the `getBuildInformation()`
+excerpt showing KleidiCV, `ldd` output, `pip freeze`, raw CSVs and the bench
+scripts are in the sidecar `results/bench/cool_bench_meta.json`, the generated
+`results/bench/cool_bench_summary.md` and the per-arm evidence directories
+written by `bench/cool/`, all at the commit above.
+{% endif %}

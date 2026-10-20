@@ -1,0 +1,24 @@
+{
+ "note": "TEST FIXTURE sidecar (trimmed); not a result",
+ "env_from_arm": "graviton-cool",
+ "arms": {
+  "x86-pip": {
+   "cool": false,
+   "cv2_file": null,
+   "git_sha": "678831e15465fde470eef0e53064c5fdd8a6de76",
+   "instance_type": null
+  },
+  "graviton-pip": {
+   "cool": false,
+   "cv2_file": null,
+   "git_sha": "678831e15465fde470eef0e53064c5fdd8a6de76",
+   "instance_type": null
+  },
+  "graviton-cool": {
+   "cool": false,
+   "cv2_file": null,
+   "git_sha": "678831e15465fde470eef0e53064c5fdd8a6de76",
+   "instance_type": null
+  }
+ }
+}

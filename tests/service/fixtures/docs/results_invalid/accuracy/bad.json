@@ -1,0 +1,10 @@
+{
+  "schema_id": "driftsense.results/1",
+  "name": "bad fixture: dataset label not allowed, metric missing unit",
+  "produced_by": "eval/gate_g2.py",
+  "git_sha": "0123abc",
+  "created_at": "2026-10-14T09:30:00Z",
+  "dataset": "calib-but-misspelled",
+  "env": {"python": "3.12.7", "opencv": "5.0.0", "numpy": "2.1.0", "platform": "Linux", "arch": "aarch64"},
+  "metrics": {"speedup": {"value": 12.3}}
+}

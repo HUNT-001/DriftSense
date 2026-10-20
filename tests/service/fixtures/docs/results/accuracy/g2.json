@@ -1,0 +1,26 @@
+{
+  "schema_id": "driftsense.results/1",
+  "name": "accuracy/g2 (test fixture)",
+  "produced_by": "eval/gate_g2.py",
+  "git_sha": "0123abc",
+  "created_at": "2026-10-14T09:30:00Z",
+  "dataset": "dev",
+  "env": {
+    "python": "3.12.7",
+    "opencv": "5.0.0",
+    "numpy": "2.1.0",
+    "platform": "Linux-6.8-aarch64",
+    "arch": "aarch64",
+    "instance_type": "c8g.large",
+    "cool": true
+  },
+  "metrics": {
+    "speedup": {"value": 12.3456, "unit": "x", "ci_low": 11.02, "ci_high": 13.51, "n": 400},
+    "top1_success": {"value": 0.4751, "unit": "fraction", "ci_low": 0.401, "ci_high": 0.549, "n": 200},
+    "e2e_p50": {"value": 23.456, "unit": "ms", "ci_low": 22.9, "ci_high": 24.1, "n": 30},
+    "latency_s": {"value": 0.0421, "unit": "s"},
+    "cost_per_1000": {"value": 0.01234, "unit": "usd"},
+    "pairs": {"value": 1234, "unit": "count"},
+    "candidate_set_size": {"value": 0.975, "unit": "fraction"}
+  }
+}

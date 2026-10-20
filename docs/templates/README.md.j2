@@ -1,0 +1,109 @@
+{#- requires: sealed/v1 sealed/ncc sealed/v2_single sealed/agent_rules sealed/decisions -#}
+{#-
+  README.md — owner: B (B7). Renders to the repo-root README.md (root template:
+  only with --include-readme, or once README.md carries the GENERATED header).
+  The legacy v1 README is preserved at the v1-munichtech tag and linked below; its
+  numbers are not current and are not repeated here.
+-#}
+{% set V1 = "sealed/v1" %}{% set NCC = "sealed/ncc" %}{% set V2 = "sealed/v2_single" %}
+{% set AG = "sealed/agent_rules" %}{% set D = "sealed/decisions.json" %}
+# DriftSense Pilot
+
+Find the right copy of a structure on a periodic semiconductor array, say how
+sure you are, and let an agent re-image or ask a human instead of guessing.
+DriftSense Pilot is an OpenCV 5 localisation engine (stages S0–S9), an
+active-perception agent with runner-enforced safety gates and an MCP server, and
+a web app on AWS with a Graviton worker built from the COOL 3.1 AMI.
+
+- Devpost text: [SUBMISSION.md](SUBMISSION.md)
+- Architecture and the OpenCV calls per stage: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- COOL on Graviton evidence: [docs/COOL_EVIDENCE.md](docs/COOL_EVIDENCE.md)
+- Responsible use: [docs/RESPONSIBLE_USE.md](docs/RESPONSIBLE_USE.md)
+- How numbers get into these docs: [docs/TEMPLATES.md](docs/TEMPLATES.md)
+
+## Headline results (sealed, pre-registered)
+
+| | Value |
+|---|---|
+| v2 single-shot top-1, pooled | {{ m(V2, "top1.pooled", fmt="pct", ci=true) }} |
+| v1 lattice top-1, pooled (prior work) | {{ m(V1, "top1.pooled", fmt="pct", ci=true) }} |
+| NCC top-1, pooled | {{ m(NCC, "top1.pooled", fmt="pct", ci=true) }} |
+| v2 set-recall, structured pairs | {{ m(V2, "set_recall.pooled_structured", fmt="pct", ci=true) }} |
+| v2 commits at the calibrated threshold | {{ m(V2, "commits.n", fmt="int") }} of {{ n(V2, "commits.n", label=false) }} pairs |
+| Agent (rules) success over the sealed-seeded agent episodes | {{ m(AG, "agent_rules.success", fmt="pct", ci=true) }} |
+| Agent (rules) false-commit rate | {{ m(AG, "agent_rules.false_commit", fmt="pct", ci=true) }} |
+| Pre-registered gate, overall pass | {{ sealed/decisions.json | overall_pass }} |
+
+{% if not flag(D, "overall_pass") %}
+The sealed gate did not pass.
+{% endif %}
+{% if val(V2, "top1.pooled") < val(V1, "top1.pooled") %}
+v2 single-shot top-1 is below the v1 baseline.
+{% endif %}
+These results come from synthetic images on a development machine; the full
+evaluation, the failed rules and the limitations are in
+[SUBMISSION.md](SUBMISSION.md).
+
+## Quickstart
+
+Python 3.12 in a virtual environment:
+
+```bash
+python3.12 -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.lock && pip install -e . --no-deps
+make test                      # pytest
+```
+
+Run an agent episode set on the virtual SEM (prints the four-arm summary;
+`--no-write` keeps the committed results file untouched):
+
+```bash
+python eval/agent_eval.py --n 4 --no-write
+```
+
+MCP server over stdio (inspect it with the MCP Inspector):
+
+```bash
+python -m driftsense.agent.mcp_server
+npx @modelcontextprotocol/inspector python -m driftsense.agent.mcp_server
+```
+
+Service end to end, in-process with mocked AWS (v2 engine plus the agent):
+
+```bash
+python -m service.e2e_local --engine v2 --agent
+```
+
+Web UI in development mode (Node 22):
+
+```bash
+cd ui && npm ci && npm run dev
+```
+
+Deploy to AWS (ap-south-1): see [infra/README.md](infra/README.md).
+
+Docs: `python scripts/render_docs.py` regenerates every generated page from
+`results/**/*.json`, and `python scripts/check_claims.py` fails if any number is
+not traceable to a results file.
+
+## Repository map
+
+| Path | What |
+|---|---|
+| `driftsense/v2/` | The OpenCV 5 engine, one module per stage |
+| `driftsense/v1/` | Frozen prior work (MunichTech), the baseline |
+| `driftsense/agent/` | Tools, rules policy, optional LLM planner, safe runner, MCP server |
+| `driftsense/sim/` | The virtual SEM used for every result |
+| `eval/` | Calibration, gates, sealed-run harness, agent evaluation |
+| `results/` | Every number in the docs, as versioned JSON |
+| `service/`, `infra/`, `ui/` | API and worker, CDK app, static web UI |
+| `bench/` | The COOL on Graviton benchmark campaign |
+| `scripts/` | Docs renderer and claims checker |
+
+## History
+
+This repository started as DriftSense v1 by MunichTech. The v1 code is frozen
+in `driftsense/v1/`; its original README and results are preserved at the
+[`v1-munichtech`](https://github.com/HUNT-001/DriftSense/tree/v1-munichtech)
+tag. They describe the previous engine on its own test seeds and are not the
+current results.

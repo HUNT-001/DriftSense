@@ -1,0 +1,78 @@
+{#-
+  RESPONSIBLE_USE.md — owner: B (B7). Renders to docs/RESPONSIBLE_USE.md.
+  Expected results files: none.
+
+  Decision (documented in docs/TEMPLATES.md, "Policy constants"): retention, dose
+  budget and step cap are configuration, not measured results. They are written
+  here in WORDS and must match their single source of truth (infra S3 lifecycle
+  rule: seven days on uploads/ jobs/ traces/; driftsense/agent/runner.py step cap
+  and dose budget). Measured quantities (false-commit or escalation rates, the
+  agent's measured dose) are never written here; SUBMISSION.md renders them.
+-#}
+# Responsible use
+
+DriftSense Pilot is a research prototype built for the OpenCV AI Competition.
+It decides where a microscope should look and whether a stage move is safe; a
+wrong decision means measuring the wrong structure. These are the limits we
+designed for and the ways we expect it to be used.
+
+## Synthetic data only
+
+- Every quantitative result is computed on images from our virtual SEM
+  (`driftsense.sim`, documented in [virtual_sem.md](virtual_sem.md)): synthetic
+  line-edge roughness, shot noise, drift and distortion on generated layouts.
+- No customer, fab or proprietary data was used to build, tune or evaluate the
+  system, and no real-tool images are part of the evaluation.
+- The generator encodes our assumptions about SEM physics. Results on it do not
+  transfer automatically to a real instrument.
+
+## A human approves uncertain stage moves
+
+- The agent commits a stage move only when the uniqueness margin clears a
+  threshold calibrated on a separate calibration split. The runner re-checks
+  that condition itself; no policy, rule-based or LLM, can override it.
+- When it cannot prove uniqueness within its step and dose budget, it stops and
+  asks for human approval, showing the top candidates and the evidence behind
+  each. Rejecting the card means no stage move.
+- The optional LLM planner can only propose perception tools (acquire,
+  localize, refine). It can never commit or escalate on its own.
+- Every step, decision and approval is written to a JSONL trace with the margin
+  and threshold that justified it.
+
+## Dose limits
+
+- Re-acquisition (longer dwell, wider field of view) adds electron dose, which
+  can damage sensitive resists. The runner has a small fixed cap on decision
+  steps and accepts a per-episode dose budget; with a budget configured, a
+  projected or instrument-raised overrun escalates to a human rather than
+  acquiring more.
+{% if exists("sealed/decisions", "rules.D12_agent_budget.pass") and flag("sealed/decisions", "rules.D12_agent_budget.pass") == false %}
+- In the sealed evaluation the agent's mean dose exceeded the pre-registered
+  budget and the corresponding decision rule failed (see
+  [SUBMISSION.md](../SUBMISSION.md)). A deployment must configure the budget so
+  the runner enforces it.
+{% endif %}
+
+## Data retention and security
+
+- Uploaded images, job records and traces are kept for seven days and then
+  deleted by an S3 lifecycle rule; curated demo inputs are kept. Buckets are
+  private, encrypted and TLS-only; uploads use short-lived presigned URLs with a
+  size cap.
+- The worker has no inbound network access and no SSH keys; administration is
+  through AWS Systems Manager only. Deployment uses GitHub OIDC, not stored keys.
+
+## Not validated on production tools
+
+- DriftSense Pilot has not been validated on a production SEM or in a fab. Do
+  not use it to make process-control decisions without an independent
+  qualification on the target tool, recipe and layout.
+- The DRAM contour stage is not implemented in this build; contact arrays go
+  through the line-roughness path.
+
+## Honest reporting
+
+Every number in these documents is rendered from versioned results files by
+`scripts/render_docs.py` and checked by `scripts/check_claims.py`. Development
+numbers are labelled DEV; only the pre-registered, hash-locked evaluation is
+labelled SEALED, and its failed decision rules are reported as failed.
