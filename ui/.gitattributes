@@ -1,0 +1,4 @@
+# Sample traces must stay byte-identical to ../traces (LF) on every checkout.
+public/samples/*.jsonl text eol=lf
+public/samples/*.json text eol=lf
+*.webp binary
