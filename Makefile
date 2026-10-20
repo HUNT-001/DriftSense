@@ -36,4 +36,37 @@ check: lint test contracts-check claims
 #   (gate-g2, gate-g5, eval-* land here in phases A4/A8)
 
 # ---- B targets ----
-#   (deploy, bench, docs land here in B's phases)
+.PHONY: docs docs-check e2e-local infra-setup synth deploy bench-local ui-setup ui-test ui-build
+
+docs:
+	python scripts/render_docs.py
+
+docs-check:
+	python scripts/render_docs.py --check
+
+e2e-local:
+	python -m service.e2e_local --engine fake
+	python -m service.e2e_local --engine v2
+	python -m service.e2e_local --engine v2 --agent
+
+infra-setup:
+	pip install -r infra/requirements.txt
+
+synth:
+	cd infra && npx --yes aws-cdk@2 synth --quiet
+
+deploy:
+	cd infra && npx --yes aws-cdk@2 deploy --all --require-approval never
+
+bench-local:
+	python -m bench.cool.microbench --quick
+	python -m bench.cool.stagebench --quick
+
+ui-setup:
+	cd ui && npm ci
+
+ui-test:
+	cd ui && npm test
+
+ui-build:
+	cd ui && npm run build
