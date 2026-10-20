@@ -3,7 +3,10 @@
 Per message: load job -> skip if terminal -> running -> resolve inputs -> driftsense.api.localize ->
 jobs/<id>/result.json -> succeeded | awaiting_approval | failed. Idempotent, heartbeat-extended,
 SIGTERM-graceful, EMF metrics on stdout.
-"""
+
+Agent episodes (``demo_id="vsem-<family>-<seed>"``, ``agent=true``) instead run
+``driftsense.agent.runner.run_episode`` on a ``VirtualSEM`` with the trace mirrored to
+``traces/<job_id>.jsonl`` and human approval through DynamoDB (see ``service/agent.py``)."""
 
 from __future__ import annotations
 
@@ -16,6 +19,7 @@ import platform
 import re
 import signal
 import sys
+import tempfile
 import threading
 import time
 import urllib.request
@@ -24,8 +28,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import IO, Any, Self
 
-from service import emf
-from service.demos import demo_keys, get_demo, synthetic_pair
+from service import agent, emf
+from service.demos import demo_keys, get_demo, parse_vsem, synthetic_pair
 from service.models import (
     TERMINAL_STATUSES,
     ApprovalRequest,
@@ -37,7 +41,17 @@ from service.models import (
     WorkerInfo,
 )
 from service.queue import JobQueue, Message
-from service.settings import ENGINES, Settings
+from service.settings import (
+    AGENT_BASE_DWELL_US,
+    AGENT_BASE_FOV_NM,
+    AGENT_PIXEL_NM,
+    AGENT_REF_DWELL_US,
+    AGENT_REF_FOV_NM,
+    AGENT_SITE_NM,
+    AGENT_TEMPLATE_FRAC,
+    ENGINES,
+    Settings,
+)
 from service.storage import ArtifactStore, InvalidTransition, JobStore
 
 log = logging.getLogger("driftsense.worker")
@@ -281,14 +295,20 @@ class Worker:
             self.queue.delete(msg.receipt_handle)
             return "dropped"
         status = item["status"]
+        req = JobCreate.model_validate_json(item["request"])
+        episode = parse_vsem(req.demo_id) if req.agent else None
+        if episode is not None:
+            if status in TERMINAL_STATUSES:
+                log.info("episode job %s is %s: skipping duplicate delivery", job_id, status)
+                self.queue.delete(msg.receipt_handle)
+                return "skipped"
+            return self._handle_episode(msg, job_id, *episode)
         if status in TERMINAL_STATUSES or status == "awaiting_approval":
-            # Duplicate delivery or an approval resume for a non-agent job: nothing to run.
-            # (Agent episodes will resume here once driftsense.agent lands; see I-G5.)
+            # Duplicate delivery or an approval resume for a non-episode job: nothing to run.
             log.info("job %s is %s (resume=%s): skipping", job_id, status, msg.resume)
             self.queue.delete(msg.receipt_handle)
             return "skipped"
 
-        req = JobCreate.model_validate_json(item["request"])
         engine_label = self.engine if self.engine in ENGINES else None
         try:
             self.jobs.transition(
@@ -329,6 +349,114 @@ class Worker:
         self._metrics(job_id, result.engine, outcome, started, result)
         return outcome
 
+    # ----- agent episode -----
+    def _handle_episode(self, msg: Message, job_id: str, family: str, seed: int) -> str:
+        """Run driftsense.agent.runner.run_episode on VirtualSEM(seed, family); see service/agent.py."""
+        st = self.settings
+        key = agent.trace_key(job_id)
+        try:
+            self.jobs.transition(
+                job_id,
+                "running",
+                allowed_from=("queued", "running", "awaiting_approval"),
+                set_fields={"worker": self.info, "engine": "v2", "trace_key": key},
+                remove_fields=("error",),
+            )
+        except InvalidTransition as exc:
+            log.info("episode job %s moved to %s concurrently: skipping", job_id, exc.current)
+            self.queue.delete(msg.receipt_handle)
+            return "skipped"
+
+        started = time.perf_counter()
+        with (
+            Heartbeat(self.queue, msg.receipt_handle, self.heartbeat_s, self.visibility_timeout),
+            tempfile.TemporaryDirectory(prefix="ds-episode-") as tmp,
+        ):
+            trace_path = Path(tmp) / f"{job_id}.jsonl"
+            try:
+                from driftsense.agent.runner import run_episode
+                from driftsense.sim import VirtualSEM
+
+                sem = VirtualSEM(
+                    seed=seed, family=family, site_size_nm=AGENT_SITE_NM, pixel_nm=AGENT_PIXEL_NM
+                )
+                with agent.TraceUploader(self.artifacts, key, trace_path, st.trace_upload_s) as uploader:
+                    approver = agent.DynamoApprover(
+                        self.jobs,
+                        job_id,
+                        timeout_s=st.approval_timeout_s,
+                        poll_s=st.approval_poll_s,
+                        on_wait=uploader.flush,
+                    )
+                    with agent.capture_localize() as cap:
+                        ep = run_episode(
+                            sem,
+                            tau=st.agent_tau,
+                            run_id=job_id,
+                            max_steps=st.agent_max_steps,
+                            max_dose=st.agent_max_dose,
+                            ref_fov_nm=AGENT_REF_FOV_NM,
+                            ref_dwell_us=AGENT_REF_DWELL_US,
+                            base_fov_nm=AGENT_BASE_FOV_NM,
+                            base_dwell_us=AGENT_BASE_DWELL_US,
+                            template_frac=AGENT_TEMPLATE_FRAC,
+                            approval_cb=approver,
+                            trace_path=str(trace_path),
+                            tool_timeout_s=st.effective_tool_timeout_s,
+                        )
+                uploader.flush()  # the complete trace, episode_end included
+                fields = self._finish_episode(job_id, family, seed, ep, cap, approver)
+            except Exception as exc:  # noqa: BLE001
+                return self._transient_failure(msg, job_id, exc, "v2", started)
+
+        status = fields.pop("_status")
+        self.jobs.transition(job_id, status, allowed_from=("running", "awaiting_approval"), set_fields=fields)
+        self.queue.delete(msg.receipt_handle)
+        self._metrics(job_id, "v2", status, started, fields.get("result"))
+        log.info(
+            "episode %s (%s-%d): outcome=%s acquisitions=%d dose=%.3g -> %s",
+            job_id,
+            family,
+            seed,
+            ep.outcome,
+            ep.steps,
+            ep.dose,
+            status,
+        )
+        return status
+
+    def _finish_episode(
+        self, job_id: str, family: str, seed: int, ep: Any, cap: agent.Capture, approver: agent.DynamoApprover
+    ) -> dict[str, Any]:
+        """Store result.json / episode.json / frames and build the final transition's fields."""
+        call = agent.decision_call(ep.events, cap)
+        result = None
+        if call is not None:
+            result = self._store_artifacts(job_id, call.result, call.template, call.search)
+            self.artifacts.put_bytes(f"jobs/{job_id}/template.png", call.template, "image/png")
+            self.artifacts.put_bytes(f"jobs/{job_id}/search.png", call.search, "image/png")
+        final = agent.final_state(ep, result, timed_out=approver.timed_out)
+        summary = agent.episode_summary(
+            ep, family=family, seed=seed, settings=self.settings, post_commit=agent.post_commit_verify(ep)
+        )
+        self.artifacts.put_bytes(f"jobs/{job_id}/episode.json", agent.dumps(summary), "application/json")
+        fields: dict[str, Any] = {"_status": final.status, "engine": "v2"}
+        if final.result is not None:
+            res = final.result.model_copy(
+                update={
+                    "artifacts": [
+                        *final.result.artifacts,
+                        Artifact(kind="json", uri=f"jobs/{job_id}/episode.json"),
+                        Artifact(kind="json", uri=f"jobs/{job_id}/result.json"),
+                    ]
+                }
+            )
+            fields["result"] = res
+            fields["result_key"] = self.artifacts.put_json(f"jobs/{job_id}/result.json", res)
+        if final.error is not None:
+            fields["error"] = final.error
+        return fields
+
     def _transient_failure(
         self, msg: Message, job_id: str, exc: Exception, engine_label: str | None, started: float
     ) -> str:
@@ -351,7 +479,7 @@ class Worker:
             exc_info=(type(exc), exc, exc.__traceback__),
         )
         try:
-            self.jobs.transition(job_id, "queued", allowed_from=("running",))
+            self.jobs.transition(job_id, "queued", allowed_from=("running", "awaiting_approval"))
         except InvalidTransition:
             pass
         try:
@@ -364,7 +492,7 @@ class Worker:
         self.jobs.transition(
             job_id,
             "failed",
-            allowed_from=("running", "queued"),
+            allowed_from=("running", "queued", "awaiting_approval"),
             set_fields={"error": ErrorInfo(code=code, message=message[:1000])},
         )
 

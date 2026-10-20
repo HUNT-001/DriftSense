@@ -6,6 +6,7 @@ generator imports numpy + cv2 lazily; the worker uses it only when ``demos/<id>/
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from service.models import DemoInfo
@@ -82,12 +83,81 @@ DEMOS: dict[str, DemoSpec] = {
 }
 
 
+# ---------- agent episodes on a VirtualSEM: demo_id = vsem-<family>-<seed> ----------
+VSEM_FAMILIES = ("dram", "finfet", "random")
+MAX_SEED = 2**31 - 1
+_VSEM_RE = re.compile(r"^vsem-(dram|finfet|random)-(0|[1-9][0-9]{0,9})$")
+
+
+def parse_vsem(demo_id: str | None) -> tuple[str, int] | None:
+    """``vsem-<family>-<seed>`` -> (family, seed); None if ``demo_id`` is not an episode id."""
+    m = _VSEM_RE.match(demo_id or "")
+    if not m or int(m.group(2)) > MAX_SEED:
+        return None
+    return m.group(1), int(m.group(2))
+
+
+def vsem_demo_id(family: str, seed: int) -> str:
+    return f"vsem-{family}-{seed}"
+
+
+# Curated episodes (any vsem-<family>-<seed> is accepted; these are the ones the UI lists). Outcomes
+# were observed with the G5 operating point (tau 0.10, max_steps 6) and the rules policy.
+AGENT_DEMOS: tuple[DemoInfo, ...] = (
+    DemoInfo(
+        demo_id="vsem-dram-7",
+        title="Agent: DRAM array, confident commit",
+        lattice="dram",
+        difficulty="easy",
+        agent=True,
+        family="dram",
+        seed=7,
+        description="Bootstrap frame clears tau: the agent commits the corrective stage move and verifies it.",
+    ),
+    DemoInfo(
+        demo_id="vsem-finfet-3",
+        title="Agent: FinFET fins, confident commit",
+        lattice="finfet",
+        difficulty="easy",
+        agent=True,
+        family="finfet",
+        seed=3,
+        description="Line-edge roughness fingerprint is unique on the first look: commit + verify.",
+    ),
+    DemoInfo(
+        demo_id="vsem-dram-1",
+        title="Agent: DRAM array, re-image then commit",
+        lattice="dram",
+        difficulty="medium",
+        agent=True,
+        family="dram",
+        seed=1,
+        description="First frame is below tau; the margin drives an extra acquisition before the commit.",
+    ),
+    DemoInfo(
+        demo_id="vsem-dram-17",
+        title="Agent: DRAM array, escalates to operator",
+        lattice="dram",
+        difficulty="hard",
+        agent=True,
+        family="dram",
+        seed=17,
+        description="Periodic ambiguity the agent cannot break within budget: it asks a human to pick.",
+    ),
+)
+
+
 def list_demos() -> list[DemoInfo]:
-    return [d.info() for d in DEMOS.values()]
+    return [d.info() for d in DEMOS.values()] + list(AGENT_DEMOS)
 
 
 def get_demo(demo_id: str) -> DemoSpec | None:
+    """Classic (template, search) demo spec; None for unknown ids and for vsem-* episode ids."""
     return DEMOS.get(demo_id)
+
+
+def is_known_demo(demo_id: str | None) -> bool:
+    return bool(demo_id) and (demo_id in DEMOS or parse_vsem(demo_id) is not None)
 
 
 def demo_keys(demo_id: str) -> tuple[str, str]:

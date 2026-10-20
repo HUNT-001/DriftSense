@@ -3,6 +3,8 @@ from __future__ import annotations
 import io
 import json
 
+import pytest
+
 from tests.service._helpers import require_service_deps
 
 require_service_deps()
@@ -112,3 +114,17 @@ def test_e2e_local_hard_demo_agent_awaits_approval(service_env, monkeypatch, cap
     monkeypatch.delenv("JOBS_QUEUE_URL", raising=False)
     assert e2e_local.main(["--demo", "demo_dram_hard", "--agent"]) == 0
     assert json.loads(capsys.readouterr().out)["status"] == "awaiting_approval"
+
+
+def test_e2e_local_agent_episode_auto_approves(service_env, monkeypatch, capsys):
+    """`python -m service.e2e_local --agent`: real episode (vsem-dram-17 escalates), auto-approved rank 1."""
+    pytest.importorskip("driftsense.agent.runner")
+    from driftsense.contracts import JobStatus
+    from service import e2e_local
+
+    monkeypatch.delenv("JOBS_QUEUE_URL", raising=False)
+    assert e2e_local.main(["--agent"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert JobStatus.model_validate(out["job"]).status == "succeeded"
+    assert out["agent"]["approvals"] == [{"approved_rank": 1, "status_code": 200, "status": "running"}]
+    assert out["agent"]["episode"]["outcome"] == "escalate" and "episode_end" in out["agent"]["trace_kinds"]

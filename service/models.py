@@ -5,6 +5,7 @@ Contract models are NEVER redefined here: they come from ``driftsense.contracts`
 
 from __future__ import annotations
 
+import json
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -73,6 +74,22 @@ class DemoInfo(_ApiModel):
     lattice: str
     difficulty: Literal["easy", "medium", "hard"]
     description: str = ""
+    agent: bool = Field(
+        False,
+        description="True: an active-perception agent episode on a VirtualSEM (POST /v1/agent/episodes)",
+    )
+    family: Literal["dram", "finfet", "random"] | None = Field(
+        None, description="VirtualSEM family (agent demos)"
+    )
+    seed: int | None = Field(None, description="VirtualSEM seed (agent demos)")
+
+
+class EpisodeCreate(_ApiModel):
+    """Body of POST /v1/agent/episodes; stored as JobCreate(demo_id="vsem-<family>-<seed>", agent=True)."""
+
+    family: Literal["dram", "finfet", "random"]
+    seed: int = Field(..., ge=0, le=2**31 - 1)
+    client_token: str | None = Field(None, description="Idempotency key")
 
 
 class VersionInfo(_ApiModel):
@@ -86,6 +103,22 @@ class VersionInfo(_ApiModel):
     python_version: str
     arch: str
     platform: str
+
+
+def apply_operator_choice(
+    result: LocalizeResult, chosen: Candidate, decision: ApprovalDecision
+) -> LocalizeResult:
+    """Record the operator's choice: offset := chosen candidate, plus a JSON audit warning."""
+    offset = result.offset.model_copy(
+        update={"x_px": chosen.x_px, "y_px": chosen.y_px, "x_nm": None, "y_nm": None}
+    )
+    if result.offset.pixel_size_nm:
+        px = result.offset.pixel_size_nm
+        offset = offset.model_copy(update={"x_nm": chosen.x_px * px, "y_nm": chosen.y_px * px})
+    audit = json.dumps(
+        {"operator_choice": {"rank": chosen.rank, "approver": decision.approver}}, separators=(",", ":")
+    )
+    return result.model_copy(update={"offset": offset, "warnings": [*result.warnings, audit]})
 
 
 class Health(_ApiModel):

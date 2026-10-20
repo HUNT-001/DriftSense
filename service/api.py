@@ -5,7 +5,6 @@ The API never imports cv2/numpy at module import (Lambda may not ship them); /v1
 
 from __future__ import annotations
 
-import json
 import logging
 import platform
 import re
@@ -22,7 +21,7 @@ from mangum import Mangum
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from service import SERVICE_VERSION
-from service.demos import get_demo, list_demos
+from service.demos import is_known_demo, list_demos, parse_vsem, vsem_demo_id
 from service.models import (
     ALLOWED_CONTENT_TYPES,
     CONTRACT_VERSION,
@@ -31,14 +30,15 @@ from service.models import (
     UPLOAD_KEY_PATTERN,
     ApprovalDecision,
     DemoInfo,
+    EpisodeCreate,
     ErrorInfo,
     Health,
     JobCreate,
     JobStatus,
-    LocalizeResult,
     UploadRequest,
     UploadResponse,
     VersionInfo,
+    apply_operator_choice,
 )
 from service.queue import JobQueue
 from service.settings import Settings
@@ -242,11 +242,12 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
             max_bytes=s.settings.max_upload_bytes,
         )
 
-    @app.post("/v1/jobs", status_code=202, responses={200: {"description": "idempotent replay"}})
-    def create_job(body: JobCreate) -> JSONResponse:
+    def submit(body: JobCreate) -> JSONResponse:
         s = svc()
-        if body.demo_id and get_demo(body.demo_id) is None:
+        if body.demo_id and not is_known_demo(body.demo_id):
             raise ApiError(422, "validation_error", f"unknown demo_id {body.demo_id!r}")
+        if parse_vsem(body.demo_id) is not None and not body.agent:
+            raise ApiError(422, "validation_error", "vsem-* demos are agent episodes: set agent=true")
         if not body.demo_id:
             for name, key in (("template_key", body.template_key), ("search_key", body.search_key)):
                 if not _UPLOAD_KEY_RE.match(key or ""):
@@ -276,8 +277,24 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
                 )
             except InvalidTransition:
                 pass
-            raise ApiError(503, "enqueue_failed", "could not enqueue the job; retry with a new client_token") from exc
+            raise ApiError(
+                503, "enqueue_failed", "could not enqueue the job; retry with a new client_token"
+            ) from exc
         return _job_response(status, 202)
+
+    @app.post("/v1/jobs", status_code=202, responses={200: {"description": "idempotent replay"}})
+    def create_job(body: JobCreate) -> JSONResponse:
+        return submit(body)
+
+    @app.post("/v1/agent/episodes", status_code=202, responses={200: {"description": "idempotent replay"}})
+    def create_episode(body: EpisodeCreate) -> JSONResponse:
+        """Start an active-perception agent episode on VirtualSEM(seed, family). Same as POST /v1/jobs
+        with {"demo_id": "vsem-<family>-<seed>", "agent": true, "client_token": ...}."""
+        return submit(
+            JobCreate(
+                demo_id=vsem_demo_id(body.family, body.seed), agent=True, client_token=body.client_token
+            )
+        )
 
     @app.get("/v1/jobs/{job_id}")
     def get_job(job_id: str) -> JSONResponse:
@@ -321,11 +338,25 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
     @app.post("/v1/jobs/{job_id}/approval")
     def approve(job_id: str, decision: ApprovalDecision) -> JSONResponse:
         s = svc()
-        status = s.jobs.get(job_id) if _JOB_ID_RE.match(job_id) else None
+        item = s.jobs.get_item(job_id) if _JOB_ID_RE.match(job_id) else None
+        status = s.jobs.get(job_id) if item and "status" in item else None
         if status is None:
             raise ApiError(404, "not_found", f"job {job_id} not found")
         if status.status != "awaiting_approval" or status.approval is None:
             raise ApiError(409, "invalid_state", f"job is {status.status}, not awaiting_approval")
+        options = {c.rank: c for c in status.approval.options}
+        if decision.chosen_rank is not None and decision.chosen_rank not in options:
+            raise ApiError(422, "validation_error", f"chosen_rank must be one of {sorted(options)} or null")
+        if _is_episode(item):
+            # The worker is blocked in the runner's approval_cb polling for this decision: store it and
+            # hand the job back to the worker, which finishes the episode (no SQS message needed).
+            try:
+                new_status = s.jobs.transition(
+                    job_id, "running", allowed_from=("awaiting_approval",), set_fields={"decision": decision}
+                )
+            except InvalidTransition as exc:
+                raise ApiError(409, "invalid_state", f"job is {exc.current}, not awaiting_approval") from None
+            return _job_response(new_status)
         fields: dict[str, Any] = {"decision": decision}
         if decision.chosen_rank is None:
             to = "failed"
@@ -335,14 +366,11 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
                 message=f"all candidates rejected by {decision.approver}{note}"[:1000],
             )
         else:
-            options = {c.rank: c for c in status.approval.options}
-            if decision.chosen_rank not in options:
-                raise ApiError(
-                    422, "validation_error", f"chosen_rank must be one of {sorted(options)} or null"
-                )
             to = "succeeded"
             if status.result is not None:
-                fields["result"] = _apply_choice(status.result, options[decision.chosen_rank], decision)
+                fields["result"] = apply_operator_choice(
+                    status.result, options[decision.chosen_rank], decision
+                )
         try:
             new_status = s.jobs.transition(job_id, to, allowed_from=("awaiting_approval",), set_fields=fields)
         except InvalidTransition as exc:
@@ -356,18 +384,12 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
     return app
 
 
-def _apply_choice(result: LocalizeResult, chosen, decision: ApprovalDecision) -> LocalizeResult:
-    """Record the operator's choice: offset := chosen candidate, plus an audit warning."""
-    offset = result.offset.model_copy(
-        update={"x_px": chosen.x_px, "y_px": chosen.y_px, "x_nm": None, "y_nm": None}
-    )
-    if result.offset.pixel_size_nm:
-        px = result.offset.pixel_size_nm
-        offset = offset.model_copy(update={"x_nm": chosen.x_px * px, "y_nm": chosen.y_px * px})
-    audit = json.dumps(
-        {"operator_choice": {"rank": chosen.rank, "approver": decision.approver}}, separators=(",", ":")
-    )
-    return result.model_copy(update={"offset": offset, "warnings": [*result.warnings, audit]})
+def _is_episode(item: dict[str, Any]) -> bool:
+    try:
+        req = JobCreate.model_validate_json(item["request"])
+    except (KeyError, ValueError):
+        return False
+    return req.agent and parse_vsem(req.demo_id) is not None
 
 
 app = create_app()
