@@ -1,17 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import commitText from '../src/fixtures/sample_trace.jsonl?raw';
-import escalateText from '../src/fixtures/sample_trace_escalate.jsonl?raw';
 import {
   TRACE_EVENT_KEYS,
   cumulativeDose,
   doseBudget,
-  isSyntheticTrace,
+  marginVerdict,
   parseTraceJsonl,
+  pixelSizeNm,
+  stepLatency,
+  summarizeTrace,
   validateTraceEvent,
 } from '../src/lib/trace';
 import { loadSchema, schemaDir, validate } from './helpers/schema';
+import { readSample, repoTrace } from './helpers/samples';
 
 const ok = { run_id: 'r', step: 0, ts: '2026-10-11T09:00:00Z', kind: 'observe' };
+const commitText = readSample('demo_commit.jsonl');
+const escalateText = readSample('demo_escalate.jsonl');
 
 describe('parseTraceJsonl', () => {
   it('skips blank lines and handles CRLF', () => {
@@ -57,51 +61,81 @@ describe('validateTraceEvent', () => {
   });
 });
 
-describe('dose helpers', () => {
-  it('carries cumulative dose forward and finds the budget', () => {
-    const evs = parseTraceJsonl(commitText).events;
-    const d = cumulativeDose(evs);
-    expect(d[0]).toBe(10);
-    for (let i = 1; i < d.length; i++) expect(d[i]!).toBeGreaterThanOrEqual(d[i - 1]!);
-    expect(doseBudget(evs)).toBe(60);
-  });
-});
-
-describe('committed sample traces', () => {
+describe('real committed sample traces (public/samples = traces/)', () => {
   const commit = parseTraceJsonl(commitText);
   const escalate = parseTraceJsonl(escalateText);
 
-  it('parse without errors and are marked synthetic', () => {
+  it('are byte-identical (modulo line endings) to the repo traces when those exist', () => {
+    for (const [name, text] of [
+      ['demo_commit.jsonl', commitText],
+      ['demo_escalate.jsonl', escalateText],
+    ] as const) {
+      const repo = repoTrace(name);
+      if (repo !== null) expect(text.replace(/\r\n/g, '\n'), name).toBe(repo.replace(/\r\n/g, '\n'));
+    }
+  });
+
+  it('parse with zero errors', () => {
     expect(commit.errors).toEqual([]);
     expect(escalate.errors).toEqual([]);
-    expect(isSyntheticTrace(commit.events)).toBe(true);
-    expect(isSyntheticTrace(escalate.events)).toBe(true);
+    expect(commit.events.length).toBeGreaterThan(5);
+    expect(escalate.events.length).toBeGreaterThan(5);
   });
 
-  it('commit sample tells the canonical story', () => {
+  it('commit trace: the OpenCV margin clears tau and drives the commit_move', () => {
     const ev = commit.events;
-    const firstLocalize = ev.find((e) => e.kind === 'tool_result' && e.tool === 'driftsense.localize')!;
-    expect(firstLocalize.margin).toBe(0.08);
-    expect(firstLocalize.tau).toBe(0.22);
-    expect(firstLocalize.because).toMatch(/margin below tau/);
-    expect(ev.some((e) => e.tool === 'driftsense.localize' && e.args?.['mode'] === 'contour')).toBe(true);
-    expect(ev.some((e) => e.tool === 'sem.acquire' && e.args?.['fov_nm'] === 2048)).toBe(true);
-    const commitMove = ev.find((e) => e.kind === 'commit_move')!;
-    expect(commitMove.margin).toBe(0.31);
-    expect(commitMove.margin!).toBeGreaterThanOrEqual(commitMove.tau!);
-    expect(commitMove.stage_move_nm).toHaveLength(2);
+    const cm = ev.find((e) => e.kind === 'commit_move')!;
+    expect(cm).toBeTruthy();
+    expect(cm.margin!).toBeGreaterThanOrEqual(cm.tau!);
+    expect(cm.because).toMatch(/^margin [\d.]+ >= tau [\d.]+$/);
+    expect(cm.stage_move_nm).toHaveLength(2);
+    // The localize result that preceded the commit carries the same margin.
+    const loc = ev.filter((e) => e.kind === 'tool_result' && e.tool === 'localize' && e.step < cm.step).at(-1)!;
+    expect(loc.margin).toBe(cm.margin);
+    expect(marginVerdict(loc.margin!, loc.tau!)).toBe('commit');
     expect(ev.at(-1)!.kind).toBe('episode_end');
-    const kinds = ev.map((e) => e.kind);
-    expect(kinds.indexOf('commit_move')).toBeGreaterThan(kinds.indexOf('decision'));
-    expect(Math.max(...ev.map((e) => e.step))).toBeLessThanOrEqual(6);
+    const s = summarizeTrace(ev);
+    expect(s.outcome).toBe('commit');
+    expect(s.decisive?.kind).toBe('commit_move');
+    expect(s.acquisitions).toBe(3);
   });
 
-  it('escalate sample ends with escalate -> human_approval and never commits below tau', () => {
+  it('escalate trace: margin below tau, never commits, escalates to a human', () => {
     const ev = escalate.events;
-    expect(ev.slice(-2).map((e) => e.kind)).toEqual(['escalate', 'human_approval']);
     expect(ev.some((e) => e.kind === 'commit_move')).toBe(false);
-    const esc = ev.at(-2)!;
+    const esc = ev.find((e) => e.kind === 'escalate')!;
     expect(esc.margin!).toBeLessThan(esc.tau!);
+    expect(esc.because).toMatch(/< tau/);
+    expect(ev.some((e) => e.kind === 'tool_call' && e.tool === 'request_human_approval')).toBe(true);
+    const s = summarizeTrace(ev);
+    expect(s.outcome).toBe('escalate');
+    expect(s.margin!).toBeLessThan(s.tau!);
+  });
+
+  it('dose: cumulative_dose from acquire results, monotone, ends at the episode total', () => {
+    for (const ev of [commit.events, escalate.events]) {
+      const d = cumulativeDose(ev);
+      expect(d[0]).toBe(0);
+      for (let i = 1; i < d.length; i++) expect(d[i]!).toBeGreaterThanOrEqual(d[i - 1]!);
+      const end = ev.at(-1)!;
+      expect(d.at(-1)).toBe(end.result_summary!['dose']);
+      expect(doseBudget(ev)).toBeUndefined();
+      expect(doseBudget(ev, 1e8)).toBe(1e8);
+    }
+  });
+
+  it('step latency uses latency_ms, else the timestamp gap', () => {
+    const ev = commit.events;
+    const iLoc = ev.findIndex((e) => e.tool === 'localize' && e.kind === 'tool_result');
+    expect(stepLatency(ev, iLoc)).toEqual({ ms: ev[iLoc]!.latency_ms, derived: false });
+    const d = stepLatency(ev, 1)!;
+    expect(d.derived).toBe(true);
+    expect(d.ms).toBeCloseTo(Date.parse(ev[1]!.ts) - Date.parse(ev[0]!.ts));
+    expect(stepLatency(ev, 0)).toBeNull();
+  });
+
+  it('pixel size comes from the last acquire (fov_nm / width_px)', () => {
+    expect(pixelSizeNm(commit.events)).toBe(1);
   });
 
   it('every event key is a contract key', () => {
@@ -111,10 +145,10 @@ describe('committed sample traces', () => {
   });
 
   const schema = loadSchema('trace_event');
-  it.skipIf(!schema)(`validate against trace_event.schema.json (${schemaDir()})`, () => {
+  it.skipIf(!schema)(`every line validates against trace_event.schema.json (${schemaDir()})`, () => {
     for (const [name, text] of [
-      ['sample_trace.jsonl', commitText],
-      ['sample_trace_escalate.jsonl', escalateText],
+      ['demo_commit.jsonl', commitText],
+      ['demo_escalate.jsonl', escalateText],
     ] as const) {
       text
         .split(/\r?\n/)

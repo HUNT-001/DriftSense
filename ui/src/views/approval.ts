@@ -11,7 +11,7 @@ import {
 import { artifactAlt } from '../lib/artifacts';
 import { clear, h } from '../lib/dom';
 import { fmt, viridis } from '../lib/format';
-import { marginBar, marginDomain } from './components';
+import { marginBar, marginDomain, replayBadge } from './components';
 import type { AppContext } from './context';
 
 const APPROVER_KEY = 'driftsense.approver';
@@ -36,7 +36,12 @@ function rememberApprover(v: string) {
  * Operator approval card for a job in `awaiting_approval`.
  * Flow: choose (Approve #n / Reject all) -> validate name -> confirm step -> POST ApprovalDecision.
  */
-export function renderApprovalCard(ctx: AppContext, job: JobStatus, onDecided: (job: JobStatus, message: string) => void): HTMLElement {
+export function renderApprovalCard(
+  ctx: AppContext,
+  job: JobStatus,
+  onDecided: (job: JobStatus, message: string) => void,
+  pixelNm: number | null = null,
+): HTMLElement {
   const req = job.approval as ApprovalRequest;
   const options = req.options;
   const candArtifact = job.result?.artifacts?.find((a) => a.kind === 'candidates');
@@ -92,8 +97,8 @@ export function renderApprovalCard(ctx: AppContext, job: JobStatus, onDecided: (
       rememberApprover(built.decision.approver);
       const msg =
         choice === 'reject'
-          ? 'Decision recorded: all candidates rejected. No stage move.'
-          : `Decision recorded: candidate #${choice} approved.`;
+          ? `Decision recorded: all candidates rejected by ${built.decision.approver}. No stage move.`
+          : `Decision recorded: rank ${choice} approved by ${built.decision.approver}.`;
       status.textContent = msg;
       ctx.announce(msg);
       onDecided(updated, msg);
@@ -143,43 +148,81 @@ export function renderApprovalCard(ctx: AppContext, job: JobStatus, onDecided: (
 
   const optionList = h(
     'ol',
-    { class: 'options' },
+    { class: 'options', 'aria-label': 'Candidates offered by the agent' },
     options.map((o) => {
-      const btn = h('button', { type: 'button', class: 'btn btn-primary' }, `Approve #${o.rank}`);
+      const btn = h(
+        'button',
+        { type: 'button', class: 'btn btn-primary', 'aria-describedby': `opt-${o.rank}-desc` },
+        `Approve rank ${o.rank}`,
+      );
       btn.addEventListener('click', () => ask(o.rank as ApprovalChoice, btn));
       choiceButtons.push(btn);
       const sw = h('span', { class: 'swatch', 'aria-hidden': 'true' });
       sw.style.setProperty('background-color', viridis(hi > lo ? (o.score - lo) / (hi - lo) : 1));
+      const nm =
+        pixelNm !== null
+          ? h('p', { class: 'muted' }, `≈ x ${fmt(o.x_px * pixelNm, 1)} nm, y ${fmt(o.y_px * pixelNm, 1)} nm`)
+          : null;
       return h(
         'li',
         { class: 'option' },
-        h('p', { class: 'option-rank' }, `Candidate #${o.rank}`),
-        h('p', null, `x ${fmt(o.x_px, 1)} px, y ${fmt(o.y_px, 1)} px`),
-        h('p', null, sw, `score ${fmt(o.score, 3)}`),
+        h('p', { class: 'option-rank' }, `Rank ${o.rank}`),
+        h(
+          'div',
+          { id: `opt-${o.rank}-desc` },
+          h('p', null, `x ${fmt(o.x_px, 1)} px, y ${fmt(o.y_px, 1)} px`),
+          nm,
+          h('p', null, sw, `fused score ${fmt(o.score, 3)}`),
+          typeof o.roughness_score === 'number' ? h('p', { class: 'muted' }, `roughness ${fmt(o.roughness_score, 3)}`) : null,
+          typeof o.lattice_score === 'number' ? h('p', { class: 'muted' }, `lattice ${fmt(o.lattice_score, 3)}`) : null,
+        ),
         btn,
       );
     }),
   );
 
-  const rejectBtn = h('button', { type: 'button', class: 'btn btn-danger' }, 'Reject all');
+  const rejectBtn = h('button', { type: 'button', class: 'btn btn-danger' }, 'Reject all (no stage move)');
   rejectBtn.addEventListener('click', () => ask('reject', rejectBtn));
   choiceButtons.push(rejectBtn);
 
-  return h(
+  const heading = h('h2', { id: 'approval-h', tabindex: '-1' }, h('span', { 'aria-hidden': 'true' }, '⚠ '), 'Operator approval needed');
+  const { margin, tau } = req.margin;
+  const card = h(
     'section',
     { class: 'card approval', 'aria-labelledby': 'approval-h' },
-    h('h2', { id: 'approval-h' }, h('span', { 'aria-hidden': 'true' }, '⚠ '), 'Operator approval needed'),
+    heading,
+    ctx.api.kind === 'replay'
+      ? h(
+          'p',
+          { class: 'notice notice-replay' },
+          replayBadge('SIMULATED APPROVAL'),
+          ' Offline replay: the candidates and margin are the recorded engine output; your decision is applied in this browser tab only.',
+        )
+      : null,
     h('p', { class: 'lead' }, explainEscalation(req)),
-    marginBar(req.margin.margin, req.margin.tau, marginDomain([req.margin.margin], req.margin.tau)),
+    h(
+      'dl',
+      { class: 'kv approval-kv' },
+      h('dt', null, 'Uniqueness margin'),
+      h('dd', null, fmt(margin, 3)),
+      h('dt', null, 'Commit threshold τ'),
+      h('dd', null, `${fmt(tau, 3)}${req.margin.calibrated ? ' (calibrated)' : ''}`),
+      typeof req.margin.p_correct === 'number' ? [h('dt', null, 'P(correct)'), h('dd', null, fmt(req.margin.p_correct, 3))] : null,
+    ),
+    marginBar(margin, tau, marginDomain([margin], tau), false, true),
     candArtifact
       ? h(
           'figure',
           { class: 'approval-thumb' },
-          h('img', { src: ctx.api.artifactUrl(job.job_id, candArtifact), alt: artifactAlt(candArtifact, job), loading: 'lazy' }),
-          h('figcaption', null, 'Candidate locations, numbered by rank'),
+          h('img', {
+            src: ctx.api.artifactUrl(job.job_id, candArtifact),
+            alt: artifactAlt(candArtifact, job, ctx.api.artifactAltText?.(job.job_id, candArtifact)),
+            loading: 'lazy',
+          }),
+          h('figcaption', null, 'Top candidate crops, ranked left to right'),
         )
       : null,
-    h('h3', null, 'Top candidates'),
+    h('h3', null, `Top ${options.length} candidates`),
     optionList,
     h(
       'div',
@@ -194,4 +237,5 @@ export function renderApprovalCard(ctx: AppContext, job: JobStatus, onDecided: (
     confirmArea,
     status,
   );
+  return card;
 }

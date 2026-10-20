@@ -1,8 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { HttpApi } from '../src/api/http';
-import { MOCK_EVENT_MS, MOCK_QUEUED_MS, MOCK_RUN_MS, MockApi } from '../src/api/mock';
-import { ApiError, newClientToken } from '../src/api/types';
-import { createApi, loadConfig } from '../src/config';
+import { episodeParams, isEpisodeDemo, newClientToken, type DemoInfo } from '../src/api/types';
+import { apiOverride, createApi, loadConfig, resolveConfig, wantsOffline } from '../src/config';
 import type { JobStatus } from '../src/types/contracts';
 import { loadSchema, validate } from './helpers/schema';
 
@@ -16,58 +15,89 @@ const jobBody: JobStatus = {
   updated_at: '2026-10-11T00:00:00Z',
 };
 
+type Call = [string, RequestInit];
+
 describe('HttpApi (stubbed fetch)', () => {
-  it('builds URLs, methods and JSON bodies', async () => {
+  it('POST /v1/jobs with the JobCreate body', async () => {
     const fetchFn = vi.fn(async () => json(jobBody, 202));
     const api = new HttpApi('https://api.example.com/', fetchFn as unknown as typeof fetch);
-    const res = await api.createJob({ demo_id: 'demo_grid', mode: 'auto', agent: true, client_token: 't' });
+    const res = await api.createJob({ demo_id: 'demo_grid', mode: 'auto', agent: false, client_token: 't' });
     expect(res.job_id).toBe('j1');
-    const [url, init] = fetchFn.mock.calls[0] as unknown as [string, RequestInit];
+    const [url, init] = fetchFn.mock.calls[0] as unknown as Call;
     expect(url).toBe('https://api.example.com/v1/jobs');
     expect(init.method).toBe('POST');
-    expect(JSON.parse(init.body as string)).toEqual({ demo_id: 'demo_grid', mode: 'auto', agent: true, client_token: 't' });
+    expect(JSON.parse(init.body as string)).toEqual({ demo_id: 'demo_grid', mode: 'auto', agent: false, client_token: 't' });
     expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json');
+    expect(init.cache).toBe('no-store');
+    const schema = loadSchema('job_create');
+    if (schema) expect(validate(schema, JSON.parse(init.body as string))).toEqual([]);
 
     await api.getJob('a/b');
     expect((fetchFn.mock.calls[1] as unknown as [string])[0]).toBe('https://api.example.com/v1/jobs/a%2Fb');
   });
 
-  it('maps error bodies to ApiError (FastAPI detail string)', async () => {
-    const api = new HttpApi('', (async () => json({ detail: 'job not found' }, 404)) as unknown as typeof fetch);
-    await expect(api.getJob('x')).rejects.toMatchObject({ name: 'ApiError', status: 404, message: 'job not found' });
+  it('POST /v1/agent/episodes {family, seed, client_token}', async () => {
+    const fetchFn = vi.fn(async () => json({ ...jobBody, job_id: 'e1' }, 202));
+    const api = new HttpApi('https://api', fetchFn as unknown as typeof fetch);
+    const r = await api.createEpisode({ family: 'dram', seed: 7, client_token: 'tok' });
+    expect(r.job_id).toBe('e1');
+    const [url, init] = fetchFn.mock.calls[0] as unknown as Call;
+    expect(url).toBe('https://api/v1/agent/episodes');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual({ family: 'dram', seed: 7, client_token: 'tok' });
   });
 
-  it('wraps network failures', async () => {
+  it('maps the service ErrorInfo body {code, message} to ApiError', async () => {
+    const api = new HttpApi('', (async () => json({ code: 'not_found', message: 'job not found' }, 404)) as unknown as typeof fetch);
+    await expect(api.getJob('x')).rejects.toMatchObject({ name: 'ApiError', status: 404, code: 'not_found', message: 'job not found' });
+  });
+
+  it('wraps network failures; healthz is false on failure or timeout', async () => {
     const api = new HttpApi('', (async () => {
       throw new TypeError('Failed to fetch');
     }) as unknown as typeof fetch);
     await expect(api.demos()).rejects.toMatchObject({ status: 0, code: 'network' });
     expect(await api.healthz()).toBe(false);
+    const hang = new HttpApi('https://api', ((_u: string, init: RequestInit) =>
+      new Promise((_r, rej) => init.signal?.addEventListener('abort', () => rej(new Error('aborted'))))) as unknown as typeof fetch);
+    expect(await hang.healthz(20)).toBe(false);
+    const up = new HttpApi('https://api', (async () => json({ ok: true })) as unknown as typeof fetch);
+    expect(await up.healthz()).toBe(true);
   });
 
-  it('PUTs uploads to the presigned URL with the given headers', async () => {
+  it('PUTs uploads to the presigned URL with exactly the returned headers', async () => {
     const fetchFn = vi.fn(async () => new Response(null, { status: 200 }));
     const api = new HttpApi('https://api', fetchFn as unknown as typeof fetch);
     const blob = new Blob(['x'], { type: 'image/png' });
-    await api.putUpload({ upload_id: 'u', key: 'k', url: 'https://s3/put', headers: { 'Content-Type': 'image/png' }, expires_in: 60 }, blob);
-    const [url, init] = fetchFn.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe('https://s3/put');
+    const headers = { 'Content-Type': 'image/png', 'Content-Length': '1' };
+    await api.putUpload({ upload_id: 'u', key: 'k', url: 'https://s3/put?sig', method: 'PUT', headers, expires_in: 900 }, blob);
+    const [url, init] = fetchFn.mock.calls[0] as unknown as Call;
+    expect(url).toBe('https://s3/put?sig');
     expect(init.method).toBe('PUT');
-    expect(init.headers).toEqual({ 'Content-Type': 'image/png' });
+    expect(init.headers).toEqual(headers);
+    expect(init.body).toBe(blob);
   });
 
-  it('fetches and parses the JSONL trace; 404 means no trace', async () => {
+  it('fetches and parses the NDJSON trace; 404 not_ready means no trace yet', async () => {
     const line = JSON.stringify({ run_id: 'r', step: 0, ts: '2026-10-11T00:00:00Z', kind: 'observe' });
     const ok = new HttpApi('https://api', (async () => new Response(`${line}\n\nbad\n`, { status: 200 })) as unknown as typeof fetch);
     const t = await ok.getTrace('j');
     expect(t?.events).toHaveLength(1);
     expect(t?.errors[0]?.line).toBe(3);
-    expect(t?.synthetic).toBe(false);
-    const missing = new HttpApi('https://api', (async () => new Response('', { status: 404 })) as unknown as typeof fetch);
+    expect(t?.source).toBe('live');
+    const missing = new HttpApi('https://api', (async () => json({ code: 'not_ready', message: 'no trace yet' }, 404)) as unknown as typeof fetch);
     expect(await missing.getTrace('j')).toBeNull();
   });
 
-  it('approve falls back to GET when the response has no JobStatus body', async () => {
+  it('getArtifactJson reads /v1/jobs/{id}/artifacts/{name}; 404 -> null', async () => {
+    const fetchFn = vi.fn().mockResolvedValueOnce(json({ outcome: 'commit' })).mockResolvedValueOnce(json({ code: 'not_found', message: 'x' }, 404));
+    const api = new HttpApi('https://api', fetchFn as unknown as typeof fetch);
+    expect(await api.getArtifactJson('j1', 'episode.json')).toEqual({ outcome: 'commit' });
+    expect((fetchFn.mock.calls[0] as [string])[0]).toBe('https://api/v1/jobs/j1/artifacts/episode.json');
+    expect(await api.getArtifactJson('j1', 'episode.json')).toBeNull();
+  });
+
+  it('approve POSTs the ApprovalDecision and falls back to GET when the body is not a JobStatus', async () => {
     const fetchFn = vi
       .fn()
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
@@ -75,147 +105,77 @@ describe('HttpApi (stubbed fetch)', () => {
     const api = new HttpApi('https://api', fetchFn as unknown as typeof fetch);
     const r = await api.approve('j1', { chosen_rank: 1, approver: 'Ada' });
     expect(r.status).toBe('running');
-    const [url, init] = fetchFn.mock.calls[0] as [string, RequestInit];
+    const [url, init] = fetchFn.mock.calls[0] as Call;
     expect(url).toBe('https://api/v1/jobs/j1/approval');
+    expect(init.method).toBe('POST');
     expect(JSON.parse(init.body as string)).toEqual({ chosen_rank: 1, approver: 'Ada' });
   });
 
-  it('resolves artifact URLs against the API base', () => {
+  it('resolves artifact URIs (S3 keys jobs/<id>/<name>) by basename', () => {
     const api = new HttpApi('https://api/');
-    expect(api.artifactUrl('j1', { kind: 'heatmap', uri: 'heatmap.png' })).toBe('https://api/v1/jobs/j1/artifacts/heatmap.png');
+    expect(api.artifactUrl('j1', { kind: 'heatmap', uri: 'jobs/j1/ncc_heatmap.png' })).toBe('https://api/v1/jobs/j1/artifacts/ncc_heatmap.png');
+  });
+});
+
+describe('demos', () => {
+  const d = (x: Partial<DemoInfo>): DemoInfo => ({ demo_id: 'demo_x', title: 't', lattice: 'dram', difficulty: 'easy', ...x });
+  it('detects agent-episode demos by flag or the vsem- prefix', () => {
+    expect(isEpisodeDemo(d({ demo_id: 'vsem-dram-7' }))).toBe(true);
+    expect(isEpisodeDemo(d({ agent: true }))).toBe(true);
+    expect(isEpisodeDemo(d({ kind: 'agent_episode' }))).toBe(true);
+    expect(isEpisodeDemo(d({}))).toBe(false);
+  });
+  it('derives family + seed from the id or explicit fields', () => {
+    expect(episodeParams(d({ demo_id: 'vsem-dram-7' }))).toEqual({ family: 'dram', seed: 7 });
+    expect(episodeParams(d({ demo_id: 'vsem-finfet-12' }))).toEqual({ family: 'finfet', seed: 12 });
+    expect(episodeParams(d({ demo_id: 'ep', agent: true, family: 'finfet', seed: 3 }))).toEqual({ family: 'finfet', seed: 3 });
+    expect(episodeParams(d({ demo_id: 'ep', agent: true, lattice: 'grid' }))).toEqual({ family: 'random', seed: 0 });
   });
 });
 
 describe('config', () => {
-  it('uses the mock when apiBase is empty, the live client otherwise', async () => {
-    const empty = await loadConfig((async () => json({ apiBase: '' })) as unknown as typeof fetch, { search: '', hash: '' });
-    expect(empty).toMatchObject({ mock: true, mockReason: 'no-api-base' });
-    expect(createApi(empty).kind).toBe('mock');
-    const live = await loadConfig((async () => json({ apiBase: 'https://api/' })) as unknown as typeof fetch, { search: '', hash: '#/' });
-    expect(live).toEqual({ apiBase: 'https://api', mock: false });
+  const cfgFetch = (apiBase: string) => (async () => json({ apiBase })) as unknown as typeof fetch;
+
+  it('offline when apiBase is empty or config.json is missing; live otherwise', async () => {
+    const empty = await loadConfig(cfgFetch(''), { search: '', hash: '' });
+    expect(empty).toMatchObject({ offline: true, offlineReason: 'no-api-base' });
+    expect(createApi(empty).kind).toBe('replay');
+    const live = await loadConfig(cfgFetch('https://api/'), { search: '', hash: '#/' });
+    expect(live).toEqual({ apiBase: 'https://api', offline: false });
     expect(createApi(live).kind).toBe('live');
-    const forced = await loadConfig((async () => json({ apiBase: 'https://api' })) as unknown as typeof fetch, { search: '?mock=1', hash: '' });
-    expect(forced).toMatchObject({ mock: true, mockReason: 'query' });
     const broken = await loadConfig((async () => {
       throw new Error('offline');
     }) as unknown as typeof fetch, { search: '', hash: '' });
-    expect(broken).toMatchObject({ mock: true, mockReason: 'config-error' });
+    expect(broken).toMatchObject({ offline: true, offlineReason: 'config-error' });
+  });
+
+  it('?api= overrides config.json; ?demo=offline forces offline replay', async () => {
+    const fetchFn = vi.fn(cfgFetch('https://from-config'));
+    const o = await loadConfig(fetchFn, { search: '?api=https://override.example/', hash: '' });
+    expect(o).toEqual({ apiBase: 'https://override.example', offline: false });
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(apiOverride({ search: '?api=javascript:alert(1)', hash: '' })).toBeNull();
+    expect(apiOverride({ search: '', hash: '#/jobs/x?api=http://localhost:8000' })).toBe('http://localhost:8000');
+    const forced = await loadConfig(cfgFetch('https://api'), { search: '?demo=offline', hash: '' });
+    expect(forced).toMatchObject({ offline: true, offlineReason: 'query' });
+    expect(wantsOffline({ search: '', hash: '#/?demo=offline' })).toBe(true);
+    expect(wantsOffline({ search: '?mock=1', hash: '' })).toBe(true);
+    expect(wantsOffline({ search: '?demo=live', hash: '' })).toBe(false);
+  });
+
+  it('falls back to offline replay when /healthz is unreachable', async () => {
+    const live = { apiBase: 'https://api', offline: false };
+    const down = await resolveConfig(live, (async () => {
+      throw new TypeError('Failed to fetch');
+    }) as unknown as typeof fetch);
+    expect(down).toEqual({ apiBase: 'https://api', offline: true, offlineReason: 'unreachable' });
+    const err500 = await resolveConfig(live, (async () => json({}, 503)) as unknown as typeof fetch);
+    expect(err500.offline).toBe(true);
+    const up = await resolveConfig(live, (async () => json({ ok: true })) as unknown as typeof fetch);
+    expect(up).toBe(live);
   });
 
   it('generates RFC 4122 v4 client tokens', () => {
     expect(newClientToken()).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
-  });
-});
-
-describe('MockApi', () => {
-  const setup = () => {
-    let now = 1_000_000;
-    const api = new MockApi({ latencyMs: 0, now: () => now });
-    return { api, advance: (ms: number) => (now += ms) };
-  };
-  const jobSchema = loadSchema('job_status');
-  const check = (j: JobStatus) => {
-    if (jobSchema) expect(validate(jobSchema, j)).toEqual([]);
-    if (j.result) expect(j.result.margin.decision === 'commit').toBe(j.result.margin.margin >= j.result.margin.tau);
-  };
-
-  it('serves version and the four demo sites', async () => {
-    const { api } = setup();
-    expect((await api.demos()).map((d) => d.id)).toEqual(['demo_finfet_easy', 'demo_dram_hard', 'demo_grid', 'demo_staggered']);
-    expect((await api.version()).contract_version).toBe('1.0.0');
-  });
-
-  it('runs a localization job queued -> running -> succeeded deterministically', async () => {
-    const { api, advance } = setup();
-    const j = await api.createJob({ demo_id: 'demo_finfet_easy', mode: 'fast' });
-    expect(j.status).toBe('queued');
-    check(j);
-    advance(MOCK_QUEUED_MS);
-    expect((await api.getJob(j.job_id)).status).toBe('running');
-    advance(MOCK_RUN_MS);
-    const done = await api.getJob(j.job_id);
-    expect(done.status).toBe('succeeded');
-    expect(done.result?.engine).toBe('fake');
-    expect(done.result?.mode).toBe('fast');
-    check(done);
-    expect(await api.getTrace(j.job_id)).toBeNull();
-  });
-
-  it('is idempotent on client_token and validates the body', async () => {
-    const { api } = setup();
-    const a = await api.createJob({ demo_id: 'demo_grid', client_token: 'tok' });
-    const b = await api.createJob({ demo_id: 'demo_grid', client_token: 'tok' });
-    expect(b.job_id).toBe(a.job_id);
-    await expect(api.createJob({})).rejects.toBeInstanceOf(ApiError);
-    await expect(api.createJob({ demo_id: 'nope' })).rejects.toMatchObject({ status: 422 });
-    await expect(api.getJob('missing')).rejects.toMatchObject({ status: 404 });
-  });
-
-  it('agent episode reveals the synthetic trace progressively and commits', async () => {
-    const { api, advance } = setup();
-    const j = await api.createJob({ demo_id: 'demo_grid', agent: true });
-    advance(MOCK_QUEUED_MS);
-    const first = await api.getTrace(j.job_id);
-    expect(first?.synthetic).toBe(true);
-    expect(first?.events).toHaveLength(1);
-    advance(MOCK_EVENT_MS * 20);
-    const t = await api.getTrace(j.job_id);
-    expect(t?.events.at(-1)?.kind).toBe('episode_end');
-    const done = await api.getJob(j.job_id);
-    expect(done.status).toBe('succeeded');
-    expect(done.trace_key).toBeTruthy();
-    check(done);
-  });
-
-  it('hard DRAM agent episode escalates, then resumes after approval', async () => {
-    const { api, advance } = setup();
-    const j = await api.createJob({ demo_id: 'demo_dram_hard', agent: true });
-    advance(MOCK_QUEUED_MS + MOCK_EVENT_MS * 20);
-    const waiting = await api.getJob(j.job_id);
-    expect(waiting.status).toBe('awaiting_approval');
-    expect(waiting.approval?.options).toHaveLength(3);
-    expect(waiting.approval?.margin.decision).toBe('escalate');
-    check(waiting);
-    expect((await api.getTrace(j.job_id))?.events.at(-1)?.kind).toBe('escalate');
-
-    await expect(api.approve(j.job_id, { chosen_rank: 1, approver: ' ' })).rejects.toMatchObject({ status: 422 });
-    const after = await api.approve(j.job_id, { chosen_rank: 2, approver: 'Ada' });
-    expect(after.status).toBe('succeeded');
-    expect(after.result?.offset.x_px).toBe(after.approval?.options[1]?.x_px ?? after.result?.candidates[1]?.x_px);
-    check(after);
-    const trace = await api.getTrace(j.job_id);
-    const last = trace!.events.at(-1)!;
-    expect(last.kind).toBe('human_approval');
-    expect(last.result_summary?.['chosen_rank']).toBe(2);
-    await expect(api.approve(j.job_id, { chosen_rank: 1, approver: 'Ada' })).rejects.toMatchObject({ status: 409 });
-  });
-
-  it('reject-all ends the job as failed with rejected_by_operator', async () => {
-    const { api, advance } = setup();
-    const j = await api.createJob({ demo_id: 'demo_dram_hard', agent: true });
-    advance(MOCK_QUEUED_MS + MOCK_EVENT_MS * 20);
-    const r = await api.approve(j.job_id, { chosen_rank: null, approver: 'Ada' });
-    expect(r.status).toBe('failed');
-    expect(r.error?.code).toBe('rejected_by_operator');
-    check(r);
-  });
-
-  it('accepts uploads only for png/tiff <= 20 MB and runs upload jobs', async () => {
-    const { api } = setup();
-    await expect(api.createUpload({ filename: 'a.jpg', content_type: 'image/jpeg', size_bytes: 1 })).rejects.toMatchObject({ status: 415 });
-    await expect(api.createUpload({ filename: 'a.png', content_type: 'image/png', size_bytes: 21 * 1024 * 1024 })).rejects.toMatchObject({ status: 413 });
-    const t1 = await api.createUpload({ filename: 't.png', content_type: 'image/png', size_bytes: 10 });
-    const t2 = await api.createUpload({ filename: 's.tif', content_type: 'image/tiff', size_bytes: 10 });
-    await api.putUpload(t1, new Blob(['x']));
-    const j = await api.createJob({ template_key: t1.key, search_key: t2.key });
-    expect(j.job_id).toMatch(/^mock-job-/);
-  });
-
-  it('serves synthetic SVG artifacts as data URIs', async () => {
-    const { api } = setup();
-    const j = await api.createJob({ demo_id: 'demo_grid' });
-    const url = api.artifactUrl(j.job_id, { kind: 'heatmap', uri: 'heatmap.svg' });
-    expect(url.startsWith('data:image/svg+xml')).toBe(true);
-    expect(decodeURIComponent(url)).toContain('SYNTHETIC');
   });
 });

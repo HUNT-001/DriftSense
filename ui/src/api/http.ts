@@ -1,7 +1,16 @@
 import type { ApprovalDecision, Artifact, JobCreate, JobStatus } from '../types/contracts';
 import { resolveArtifactUrl } from '../lib/artifacts';
-import { isSyntheticTrace, parseTraceJsonl } from '../lib/trace';
-import { ApiError, type Api, type DemoSite, type TraceFetch, type UploadRequest, type UploadTicket, type VersionInfo } from './types';
+import { parseTraceJsonl } from '../lib/trace';
+import {
+  ApiError,
+  type Api,
+  type DemoInfo,
+  type EpisodeCreate,
+  type TraceFetch,
+  type UploadRequest,
+  type UploadTicket,
+  type VersionInfo,
+} from './types';
 
 export type FetchFn = typeof fetch;
 
@@ -18,7 +27,8 @@ export class HttpApi implements Api {
   }
 
   private async send(method: string, path: string, body?: unknown): Promise<Response> {
-    const init: RequestInit = { method, headers: { Accept: 'application/json' } };
+    // no-store: job status changes between polls; never serve it from the HTTP cache.
+    const init: RequestInit = { method, headers: { Accept: 'application/json' }, cache: 'no-store' };
     if (body !== undefined) {
       init.headers = { ...init.headers, 'Content-Type': 'application/json' };
       init.body = JSON.stringify(body);
@@ -42,12 +52,20 @@ export class HttpApi implements Api {
     }
   }
 
-  async healthz(): Promise<boolean> {
+  /** GET /healthz with a hard timeout (used at boot to decide on offline replay). */
+  async healthz(timeoutMs = 4000): Promise<boolean> {
+    const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+    const t = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : undefined;
     try {
-      await this.send('GET', '/healthz');
-      return true;
+      const res = await this.fetchFn(`${this.apiBase}/healthz`, {
+        headers: { Accept: 'application/json' },
+        ...(ctrl ? { signal: ctrl.signal } : {}),
+      });
+      return res.ok;
     } catch {
       return false;
+    } finally {
+      clearTimeout(t);
     }
   }
 
@@ -55,7 +73,7 @@ export class HttpApi implements Api {
     return this.json('GET', '/v1/version');
   }
 
-  demos(): Promise<DemoSite[]> {
+  demos(): Promise<DemoInfo[]> {
     return this.json('GET', '/v1/demos');
   }
 
@@ -66,7 +84,8 @@ export class HttpApi implements Api {
   async putUpload(ticket: UploadTicket, file: Blob): Promise<void> {
     let res: Response;
     try {
-      res = await this.fetchFn(ticket.url, { method: 'PUT', headers: ticket.headers ?? {}, body: file });
+      // Send exactly the signed headers the service returned (Content-Type + Content-Length).
+      res = await this.fetchFn(ticket.url, { method: ticket.method ?? 'PUT', headers: { ...(ticket.headers ?? {}) }, body: file });
     } catch (e) {
       throw new ApiError(`Upload failed: ${(e as Error).message}`, 0, 'network');
     }
@@ -75,6 +94,11 @@ export class HttpApi implements Api {
 
   createJob(body: JobCreate): Promise<JobStatus> {
     return this.json('POST', '/v1/jobs', body);
+  }
+
+  /** POST /v1/agent/episodes -> 202 JobStatus. */
+  createEpisode(body: EpisodeCreate): Promise<JobStatus> {
+    return this.json('POST', '/v1/agent/episodes', body);
   }
 
   getJob(jobId: string): Promise<JobStatus> {
@@ -97,14 +121,35 @@ export class HttpApi implements Api {
     try {
       res = await this.fetchFn(`${this.apiBase}/v1/jobs/${encodeURIComponent(jobId)}/trace`, {
         headers: { Accept: 'application/x-ndjson, application/jsonl, text/plain' },
+        cache: 'no-store',
       });
     } catch (e) {
       throw new ApiError(`Network error fetching trace: ${(e as Error).message}`, 0, 'network');
     }
+    // 404 not_ready: the agent has not written its first event yet (the trace grows while running).
     if (res.status === 404) return null;
     if (!res.ok) throw await toApiError(res);
     const parsed = parseTraceJsonl(await res.text());
-    return { ...parsed, synthetic: isSyntheticTrace(parsed.events) };
+    return { ...parsed, source: 'live' };
+  }
+
+  async getArtifactJson(jobId: string, name: string): Promise<unknown | null> {
+    let res: Response;
+    try {
+      res = await this.fetchFn(
+        `${this.apiBase}/v1/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(name)}`,
+        { headers: { Accept: 'application/json' } },
+      );
+    } catch (e) {
+      throw new ApiError(`Network error fetching ${name}: ${(e as Error).message}`, 0, 'network');
+    }
+    if (res.status === 404) return null;
+    if (!res.ok) throw await toApiError(res);
+    try {
+      return (await res.json()) as unknown;
+    } catch {
+      throw new ApiError(`Malformed JSON in ${name}`, res.status, 'bad_json');
+    }
   }
 
   artifactUrl(jobId: string, artifact: Artifact): string {

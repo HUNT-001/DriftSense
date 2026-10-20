@@ -37,31 +37,63 @@ export function decisionChip(decision: Margin['decision']): HTMLElement {
   );
 }
 
-/** Domain for margin bars so tau sits comfortably inside the scale. */
-export function marginDomain(values: (number | null | undefined)[], tau: number): number {
+export interface MarginDomain {
+  lo: number;
+  hi: number;
+}
+
+/** Domain for margin bars: includes 0, tau and every value (margins can be negative). */
+export function marginDomain(values: (number | null | undefined)[], tau: number): MarginDomain {
   const finite = values.filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
-  return Math.max(0.5, tau * 2, ...finite.map((v) => v * 1.1));
+  const lo = Math.min(0, ...finite.map((v) => v * 1.15));
+  const hi = Math.max(0.5, tau * 2, ...finite.map((v) => v * 1.1));
+  return { lo, hi };
+}
+
+const pct = (v: number, d: MarginDomain) => ((v - d.lo) / (d.hi - d.lo || 1)) * 100;
+
+/** What the agent does with this margin. `final` = the step budget is spent (escalate, not re-acquire). */
+export function verdictText(margin: number, tau: number, final = false): string {
+  if (margin >= tau) return 'commit allowed';
+  return final ? 'escalate to a human' : 're-acquire or escalate';
 }
 
 /**
- * Horizontal bar of `margin` with a vertical line at `tau`. Exposed to assistive tech as an image
- * with a full text description; the same comparison is also printed as visible text.
+ * Horizontal bar of `margin` with a vertical line at `tau` (and at 0 when margins go negative).
+ * Exposed to assistive tech as an image with a full text description; the same comparison and
+ * the resulting action are printed as visible text (never colour alone: icon + hatching too).
  */
-export function marginBar(margin: number, tau: number, max: number, compact = false): HTMLElement {
+export function marginBar(
+  margin: number,
+  tau: number,
+  domain: MarginDomain | number,
+  compact = false,
+  final = false,
+): HTMLElement {
+  const d: MarginDomain = typeof domain === 'number' ? { lo: 0, hi: domain } : domain;
   const above = margin >= tau;
-  const desc = `Margin ${fmt(margin)} ${above ? 'is at or above' : 'is below'} the threshold tau ${fmt(tau)}`;
-  const fill = setWidthPct(h('span', { class: `mbar-fill ${above ? 'is-above' : 'is-below'}` }), (margin / max) * 100);
-  const tick = setLeftPct(h('span', { class: 'mbar-tau' }), (tau / max) * 100);
+  const verdict = verdictText(margin, tau, final);
+  const desc = `Uniqueness margin ${fmt(margin, 3)} ${above ? 'is at or above' : 'is below'} the threshold tau ${fmt(tau, 3)}: ${verdict}`;
+  const zero = pct(0, d);
+  const fill = h('span', { class: `mbar-fill ${above ? 'is-above' : 'is-below'}` });
+  const from = Math.min(zero, pct(margin, d));
+  const to = Math.max(zero, pct(margin, d));
+  setLeftPct(fill, from);
+  setWidthPct(fill, Math.max(0.8, to - from));
+  const tick = setLeftPct(h('span', { class: 'mbar-tau' }), pct(tau, d));
+  const tauLabel = setLeftPct(h('span', { class: 'mbar-tau-label', 'aria-hidden': 'true' }, 'τ'), pct(tau, d));
+  const zeroTick = d.lo < 0 ? setLeftPct(h('span', { class: 'mbar-zero' }), zero) : null;
   return h(
     'div',
-    { class: `mbar${compact ? ' mbar-compact' : ''}` },
-    h('div', { class: 'mbar-track', role: 'img', 'aria-label': desc }, fill, tick),
+    { class: `mbar${compact ? ' mbar-compact' : ''} ${above ? 'is-commit' : 'is-below'}` },
+    h('div', { class: 'mbar-track', role: 'img', 'aria-label': desc }, zeroTick, fill, tick, tauLabel),
     h(
       'p',
       { class: 'mbar-text' },
-      h('span', { 'aria-hidden': 'true' }, above ? '✔ ' : '✗ '),
-      `margin ${fmt(margin)} ${above ? '≥' : '<'} τ ${fmt(tau)}`,
-      h('span', { class: 'muted' }, above ? ' (unique)' : ' (not proven unique)'),
+      h('span', { class: 'mbar-icon', 'aria-hidden': 'true' }, above ? '✔ ' : '✗ '),
+      h('span', { class: 'mbar-cmp' }, `margin ${fmt(margin, 3)} ${above ? '≥' : '<'} τ ${fmt(tau, 3)}`),
+      h('span', { 'aria-hidden': 'true' }, ' → '),
+      h('strong', { class: 'mbar-verdict' }, verdict),
     ),
   );
 }
@@ -77,8 +109,12 @@ export function valueBar(label: string, valueText: string, fraction: number, cls
   );
 }
 
-export function syntheticBadge(text = 'SYNTHETIC SAMPLE'): HTMLElement {
-  return h('span', { class: 'badge badge-synthetic' }, h('span', { 'aria-hidden': 'true' }, '⚑ '), text);
+export function replayBadge(text = 'OFFLINE REPLAY'): HTMLElement {
+  return h('span', { class: 'badge badge-replay' }, h('span', { 'aria-hidden': 'true' }, '⏵ '), text);
+}
+
+export function simulatedBadge(): HTMLElement {
+  return h('span', { class: 'badge badge-sim' }, 'simulated operator step');
 }
 
 export function dl(rows: [string, Node | string][]): HTMLDListElement {

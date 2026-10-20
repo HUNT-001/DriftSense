@@ -46,8 +46,17 @@ const PAIRS: [string, string][] = [
   ['escalate', 'surface-2'],
   ['danger', 'surface'],
   ['danger', 'surface-2'],
-  ['synthetic', 'surface'],
-  ['synthetic', 'surface-2'],
+  ['replay', 'surface'],
+  ['replay', 'surface-2'],
+  ['replay', 'bg'],
+  ['commit', 'commit-bg'],
+  ['escalate', 'escalate-bg'],
+  ['text', 'commit-bg'],
+  ['text', 'escalate-bg'],
+  ['muted', 'commit-bg'],
+  ['muted', 'escalate-bg'],
+  ['commit', 'bg'],
+  ['escalate', 'bg'],
 ];
 
 describe('colour contrast (WCAG AA 4.5:1)', () => {

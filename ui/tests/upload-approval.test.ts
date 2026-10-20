@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildApprovalDecision, describeDecision, explainEscalation } from '../src/lib/approval';
 import { MAX_UPLOAD_BYTES, contentTypeFor, validateUploadFile } from '../src/lib/upload';
 import type { ApprovalRequest } from '../src/types/contracts';
+import { loadSchema, validate } from './helpers/schema';
 
 describe('upload validation', () => {
   it('accepts PNG and TIFF within the limit', () => {
@@ -25,6 +26,8 @@ describe('approval payload', () => {
   it('builds an approve decision with trimmed fields', () => {
     const r = buildApprovalDecision({ choice: 2, approver: '  Ada  ', note: ' looks right ', optionCount: 3 });
     expect(r).toEqual({ ok: true, decision: { chosen_rank: 2, approver: 'Ada', note: 'looks right' } });
+    const schema = loadSchema('approval_decision');
+    if (schema && r.ok) expect(validate(schema, r.decision)).toEqual([]);
   });
   it('builds a reject-all decision (chosen_rank null) and omits an empty note', () => {
     const r = buildApprovalDecision({ choice: 'reject', approver: 'Ada', note: '   ', optionCount: 3 });
@@ -45,8 +48,8 @@ describe('approval payload', () => {
       options: [{ rank: 1, x_px: 1, y_px: 2, score: 0.5 }],
       margin: { margin: 0.15, tau: 0.22, calibrated: true, decision: 'escalate' },
     };
-    expect(explainEscalation(req)).toMatch(/0\.15 is below the commit threshold τ = 0\.22/);
-    expect(describeDecision(1, req.options)).toMatch(/Approve candidate #1 at \(1\.0, 2\.0\) px/);
+    expect(explainEscalation(req)).toMatch(/0\.150 is below the commit threshold τ = 0\.220/);
+    expect(describeDecision(1, req.options)).toMatch(/Approve rank 1 at \(1\.0, 2\.0\) px/);
     expect(describeDecision('reject', req.options)).toMatch(/No stage move/);
   });
 });

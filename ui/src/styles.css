@@ -15,7 +15,9 @@
   --escalate: #9a4600;
   --danger: #b00020;
   --danger-text: #ffffff;
-  --synthetic: #5b3fa0;
+  --replay: #5b3fa0;
+  --commit-bg: #e6f4ef;
+  --escalate-bg: #fbeee2;
   --track: #dfe4ea;
   --radius: 10px;
   --gap: 1rem;
@@ -41,7 +43,9 @@
     --escalate: #ffb45e;
     --danger: #ff8a8a;
     --danger-text: #1a0606;
-    --synthetic: #c7b3ff;
+    --replay: #c7b3ff;
+    --commit-bg: #12302a;
+    --escalate-bg: #352516;
     --track: #2b323c;
   }
 }
@@ -155,7 +159,7 @@ p {
 /* ---------- shell ---------- */
 .demo-banner {
   background: var(--surface-2);
-  border-bottom: 2px solid var(--synthetic);
+  border-bottom: 2px solid var(--replay);
   padding: 0.5rem 1rem;
   font-size: 0.95rem;
   text-align: center;
@@ -342,8 +346,8 @@ select {
 .notice-ok {
   border-color: var(--commit);
 }
-.notice-synthetic {
-  border-color: var(--synthetic);
+.notice-replay {
+  border-color: var(--replay);
 }
 .notice > :last-child {
   margin-bottom: 0;
@@ -358,8 +362,14 @@ select {
   border-radius: 999px;
   border: 2px solid currentColor;
 }
-.badge-synthetic {
-  color: var(--synthetic);
+.badge-replay {
+  color: var(--replay);
+}
+.badge-sim {
+  color: var(--replay);
+  border-style: dashed;
+  font-weight: 600;
+  letter-spacing: 0;
 }
 
 .pill,
@@ -616,6 +626,9 @@ select {
   inset: 0 auto 0 0;
   border-radius: 999px;
 }
+.mbar-fill {
+  right: auto;
+}
 .mbar-fill.is-above {
   background: var(--commit);
 }
@@ -631,9 +644,33 @@ select {
   margin-left: -1.5px;
   background: var(--text);
 }
+.mbar-tau-label {
+  position: absolute;
+  top: -1.35rem;
+  transform: translateX(-50%);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.mbar-zero {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--muted);
+}
+.mbar {
+  padding-top: 0.9rem;
+}
 .mbar-text {
   font-size: 0.88rem;
   margin: 0.3rem 0 0;
+}
+.mbar.is-commit .mbar-verdict {
+  color: var(--commit);
+}
+.mbar.is-below .mbar-verdict {
+  color: var(--escalate);
 }
 
 .vbar {
@@ -763,6 +800,148 @@ figcaption {
   border-radius: var(--radius);
   padding: 0.75rem 1rem;
   margin: 0.75rem 0;
+}
+
+/* ---------- agentic trace ---------- */
+.boot-wait {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--muted);
+}
+.card-hero {
+  border: 2px solid var(--accent);
+}
+.btn-hero {
+  font-size: 1.1rem;
+  padding: 0.7rem 1.4rem;
+}
+.field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.25rem;
+}
+.field-seed input {
+  max-width: 8rem;
+}
+input[type='number'] {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+  min-height: 44px;
+}
+.tag-agent {
+  border-color: var(--replay);
+  font-weight: 700;
+}
+.decision-card {
+  border-radius: var(--radius);
+  border: 2px solid var(--border);
+  border-left-width: 8px;
+  padding: 0.75rem 1rem;
+  margin: 0.5rem 0 1rem;
+  background: var(--surface-2);
+}
+.decision-card.is-commit {
+  border-color: var(--commit);
+  background: var(--commit-bg);
+}
+.decision-card.is-escalate,
+.decision-card.is-abort {
+  border-color: var(--escalate);
+  background: var(--escalate-bg);
+}
+.decision-title {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+.decision-eq {
+  font-family: var(--mono);
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+}
+.decision-op {
+  font-weight: 700;
+}
+.decision-stats {
+  font-size: 0.9rem;
+  margin-bottom: 0;
+}
+.because-key,
+.tl-because q {
+  font-family: var(--mono);
+  font-size: 0.92em;
+}
+.tl-because-label {
+  color: var(--muted);
+}
+.tl-because.is-key {
+  margin: 0.35rem 0;
+  padding: 0.5rem 0.75rem;
+  border-left: 4px solid currentColor;
+  background: var(--surface-2);
+  border-radius: 4px;
+}
+.tl-commit_move .tl-because.is-key {
+  color: var(--commit);
+  background: var(--commit-bg);
+}
+.tl-escalate .tl-because.is-key {
+  color: var(--escalate);
+  background: var(--escalate-bg);
+}
+.tl-because.is-key q {
+  color: var(--text);
+  font-weight: 700;
+}
+.tl-key {
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  padding-left: 0.4rem;
+  padding-right: 0.4rem;
+}
+.tl-key .tl-step {
+  border-width: 3px;
+}
+.tl-next {
+  font-size: 0.92rem;
+  margin: 0.2rem 0 0.4rem;
+}
+.tl-next.is-commit strong {
+  color: var(--commit);
+}
+.tl-next.is-reacquire strong {
+  color: var(--escalate);
+}
+.tl-warn summary {
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+.tl-warn ul {
+  font-size: 0.85rem;
+  margin: 0.25rem 0;
+}
+.tl-new {
+  animation: tl-in 0.6s ease-out;
+}
+@keyframes tl-in {
+  from {
+    background: var(--surface-2);
+    transform: translateY(-4px);
+  }
+  to {
+    background: transparent;
+    transform: none;
+  }
+}
+.approval-kv {
+  margin-bottom: 0.5rem;
+}
+.outcome:focus {
+  outline: 3px solid var(--focus);
 }
 
 /* ---------- prose pages ---------- */

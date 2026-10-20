@@ -35,7 +35,7 @@ export function buildApprovalDecision(input: ApprovalInput): ApprovalBuild {
   if (input.choice !== 'reject') {
     const max = Math.min(3, Math.max(0, input.optionCount));
     if (!(Number.isInteger(input.choice) && input.choice >= 1 && input.choice <= max)) {
-      errors.push({ field: 'choice', message: `Choose a candidate between #1 and #${max}.` });
+      errors.push({ field: 'choice', message: `Choose a rank between 1 and ${max}.` });
     } else chosen = input.choice;
   }
   if (errors.length) return { ok: false, errors };
@@ -48,8 +48,8 @@ export function buildApprovalDecision(input: ApprovalInput): ApprovalBuild {
 export function explainEscalation(req: ApprovalRequest): string {
   const { margin, tau } = req.margin;
   return (
-    `The agent could not prove which copy is the real one: its uniqueness margin ${fmt(margin, 2)} ` +
-    `is below the commit threshold τ = ${fmt(tau, 2)}. It will not move the stage on its own. ` +
+    `The agent could not prove which copy is the real one: its uniqueness margin ${fmt(margin, 3)} ` +
+    `is below the commit threshold τ = ${fmt(tau, 3)}. It will not move the stage on its own. ` +
     `Approve the candidate you believe is correct, or reject all of them.`
   );
 }
@@ -59,5 +59,5 @@ export function describeDecision(choice: ApprovalChoice, options: Candidate[]): 
   if (choice === 'reject') return 'Reject all candidates. No stage move will be made for this site.';
   const c = options.find((o) => o.rank === choice);
   const where = c ? ` at (${fmt(c.x_px, 1)}, ${fmt(c.y_px, 1)}) px, score ${fmt(c.score, 3)}` : '';
-  return `Approve candidate #${choice}${where}. The stage correction for this candidate will be committed.`;
+  return `Approve rank ${choice}${where}. The stage correction for this candidate will be committed on your authority.`;
 }

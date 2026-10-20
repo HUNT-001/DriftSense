@@ -1,5 +1,5 @@
 import type { Api, VersionInfo } from './api/types';
-import type { AppConfig } from './config';
+import { OFFLINE_LABEL, offlineReasonText, type AppConfig } from './config';
 import type { WorkerInfo } from './types/contracts';
 import { clear, h } from './lib/dom';
 import { shortSha } from './lib/format';
@@ -24,20 +24,22 @@ export interface MountedApp {
 
 export function versionText(v: VersionInfo): string {
   const parts = [
-    `service ${v.service_version}`,
-    `contract ${v.contract_version}`,
-    `git ${shortSha(v.git_sha)}`,
-    v.cv2_version ? `OpenCV ${v.cv2_version}` : null,
-    `Python ${v.python}`,
-    v.arch,
+    v.service_version ? `service ${v.service_version}` : null,
+    v.contract_version ? `contract ${v.contract_version}` : null,
+    v.git_sha ? `git ${shortSha(v.git_sha)}` : null,
+    v.engine ? `engine ${v.engine}` : null,
+    v.opencv_version ? `OpenCV ${v.opencv_version}` : null,
+    v.numpy_version ? `NumPy ${v.numpy_version}` : null,
+    v.python_version ? `Python ${v.python_version}` : null,
+    v.arch ?? null,
   ];
   return parts.filter(Boolean).join(' · ');
 }
 
 export function workerText(w: WorkerInfo | null | undefined): string {
-  if (!w) return 'COOL worker: not known yet (run a job)';
+  if (!w) return 'Worker: not known yet (run a job)';
   const where = [w.arch, w.instance_type].filter((x) => x && x !== 'unknown').join(', ');
-  return `COOL worker: ${w.cool ? 'yes' : 'no'}${where ? ` (${where})` : ''}`;
+  return `Worker: OpenCV ${w.opencv_version} · COOL ${w.cool ? 'yes' : 'no'}${where ? ` (${where})` : ''}`;
 }
 
 /** Build the page shell into `root` and start the hash router. */
@@ -54,27 +56,25 @@ export function mountApp(root: HTMLElement, api: Api, config: AppConfig, win: Wi
   const versionLine = h('p', { class: 'version-line' }, 'API version: loading…');
   const workerLine = h('p', { class: 'worker-line' }, workerText(null));
 
-  const modeLink = config.mock
+  const here = `${win.location.pathname}`;
+  const modeLink = config.offline
     ? h(
         'p',
         null,
-        'Demo mode: responses come from an in-browser mock. ',
-        config.apiBase ? h('a', { href: win.location.pathname }, 'Switch to the live API') : null,
+        `${OFFLINE_LABEL}: no API is contacted. `,
+        config.apiBase ? h('a', { href: here }, 'Retry the live API') : null,
       )
-    : h('p', null, h('a', { href: `${win.location.pathname}?mock=1#/` }, 'Try demo mode (no backend, synthetic data)'));
+    : h('p', null, h('a', { href: `${here}?demo=offline#/` }, 'Open the offline replay (no backend needed)'));
 
-  const banner = config.mock
+  const banner = config.offline
     ? h(
         'div',
         { class: 'demo-banner', role: 'note' },
-        h('span', { 'aria-hidden': 'true' }, '⚑ '),
-        h('strong', null, 'Demo mode. '),
-        config.mockReason === 'query'
-          ? 'You asked for the offline demo: '
-          : config.mockReason === 'config-error'
-            ? 'The API configuration could not be loaded, so the offline demo is running: '
-            : 'No API is configured, so the offline demo is running: ',
-        'every result, trace and number on screen is synthetic (engine "fake"), not a measurement.',
+        h('span', { class: 'badge badge-replay' }, h('span', { 'aria-hidden': 'true' }, '⏵ '), 'OFFLINE REPLAY'),
+        ' ',
+        h('strong', null, `${OFFLINE_LABEL}. `),
+        offlineReasonText(config.offlineReason),
+        ' The agent steps, margins and images are the real recorded output of the engine; only the operator decision is simulated by you.',
       )
     : null;
 
@@ -114,7 +114,7 @@ export function mountApp(root: HTMLElement, api: Api, config: AppConfig, win: Wi
     .version()
     .then((v) => {
       versionLine.textContent = `API: ${versionText(v)}`;
-      if (v.cv2_file) versionLine.append(h('span', { class: 'muted' }, ` · cv2 from ${v.cv2_file}`));
+      if (v.opencv_file) versionLine.append(h('span', { class: 'muted' }, ` · cv2 from ${v.opencv_file}`));
     })
     .catch(() => {
       versionLine.textContent = 'API version: unavailable';
