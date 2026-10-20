@@ -16,7 +16,7 @@ mangum>=0.19
 boto3>=1.35
 psutil>=6
 # agent MCP server (A handoff, PR #11)
-mcp>=1.10
+mcp>=1.10,<2  # driftsense.agent.mcp_server uses mcp.server.fastmcp (renamed in mcp 2.x)
 # docs pipeline (B): render_docs.py templates
 jinja2>=3.1
 # service tests (moto fakes, FastAPI TestClient)

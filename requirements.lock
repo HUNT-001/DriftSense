@@ -11,7 +11,6 @@ annotated-types==0.8.0
 anyio==4.15.1
     # via
     #   httpx
-    #   httpx2
     #   mcp
     #   sse-starlette
     #   starlette
@@ -60,21 +59,19 @@ fonttools==4.67.0
 h11==0.16.0
     # via
     #   httpcore
-    #   httpcore2
     #   uvicorn
 httpcore==1.0.9
     # via httpx
-httpcore2==2.15.1
-    # via httpx2
 httpx==0.28.1
-    # via -r requirements.in
-httpx2==2.15.1
+    # via
+    #   -r requirements.in
+    #   mcp
+httpx-sse==0.4.3
     # via mcp
 idna==3.20
     # via
     #   anyio
     #   httpx
-    #   httpx2
     #   requests
 iniconfig==2.3.1
     # via pytest
@@ -98,10 +95,8 @@ markupsafe==3.0.4
     #   werkzeug
 matplotlib==3.11.2
     # via -r requirements.in
-mcp==2.3.0
+mcp==1.30.0
     # via -r requirements.in
-mcp-types==2.3.0
-    # via mcp
 moto==5.2.4
     # via -r requirements.in
 numpy==2.5.4
@@ -114,9 +109,7 @@ numpy==2.5.4
 opencv-python-headless==5.0.0.93
     # via -r requirements.in
 opentelemetry-api==1.45.1
-    # via
-    #   fastapi
-    #   mcp
+    # via fastapi
 packaging==26.3
     # via
     #   build
@@ -142,9 +135,11 @@ pydantic==2.14.1
     #   -r requirements.in
     #   fastapi
     #   mcp
-    #   mcp-types
+    #   pydantic-settings
 pydantic-core==2.50.1
     # via pydantic
+pydantic-settings==2.16.1
+    # via mcp
 pygments==2.21.0
     # via pytest
 pyjwt==2.15.1
@@ -161,6 +156,8 @@ python-dateutil==2.9.0.post0
     # via
     #   botocore
     #   matplotlib
+python-dotenv==1.2.4
+    # via pydantic-settings
 python-multipart==0.0.32
     # via mcp
 pyyaml==6.0.3
@@ -197,21 +194,16 @@ starlette==1.9.0
     #   sse-starlette
 tqdm==4.70.1
     # via -r requirements.in
-truststore==0.10.5
-    # via
-    #   httpcore2
-    #   httpx2
 typing-extensions==4.16.0
     # via
     #   anyio
     #   fastapi
-    #   httpx2
     #   mangum
     #   mcp
-    #   mcp-types
     #   opentelemetry-api
     #   pydantic
     #   pydantic-core
+    #   pydantic-settings
     #   referencing
     #   starlette
     #   typing-inspection
@@ -220,6 +212,7 @@ typing-inspection==0.4.4
     #   fastapi
     #   mcp
     #   pydantic
+    #   pydantic-settings
 urllib3==2.8.0
     # via
     #   botocore
