@@ -402,7 +402,7 @@ class Worker:
                             template_frac=AGENT_TEMPLATE_FRAC,
                             approval_cb=approver,
                             trace_path=str(trace_path),
-                            tool_timeout_s=st.effective_tool_timeout_s,
+                            **agent.episode_timeouts(run_episode, st),
                         )
                 uploader.flush()  # the complete trace, episode_end included
                 fields = self._finish_episode(job_id, family, seed, ep, cap, approver)

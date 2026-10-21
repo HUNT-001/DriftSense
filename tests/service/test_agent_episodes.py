@@ -360,3 +360,18 @@ def test_trace_uploader_thread_mirrors_periodically(services, tmp_path):
         ):
             time.sleep(0.02)
     assert services.artifacts.get_bytes("traces/y.jsonl") == b'{"step":0}\n' and up.uploads >= 2
+
+
+def test_episode_timeouts_follow_runner_signature():
+    from types import SimpleNamespace
+
+    from service.agent import episode_timeouts
+
+    st = SimpleNamespace(agent_tool_timeout_s=15.0, approval_timeout_s=900.0, effective_tool_timeout_s=960.0)
+
+    def new_runner(sem, *, tool_timeout_s=15.0, approval_timeout_s=None): ...
+
+    def old_runner(sem, *, tool_timeout_s=15.0): ...
+
+    assert episode_timeouts(new_runner, st) == {"tool_timeout_s": 15.0, "approval_timeout_s": 960.0}
+    assert episode_timeouts(old_runner, st) == {"tool_timeout_s": 960.0}

@@ -352,3 +352,20 @@ def post_commit_verify(ep: Any) -> dict | None:
 
 def dumps(doc: dict) -> bytes:
     return json.dumps(doc, indent=2, sort_keys=True).encode("utf-8")
+
+
+def episode_timeouts(run_episode_fn: Any, settings: Any) -> dict[str, float]:
+    """Timeout kwargs for run_episode.
+
+    A runner that bounds the human-approval wait separately (``approval_timeout_s``) keeps the tight
+    per-tool timeout; an older runner applies one timeout to every tool, approval included, so it must
+    outlast the approval window.
+    """
+    import inspect
+
+    if "approval_timeout_s" in inspect.signature(run_episode_fn).parameters:
+        return {
+            "tool_timeout_s": settings.agent_tool_timeout_s,
+            "approval_timeout_s": settings.approval_timeout_s + 60.0,
+        }
+    return {"tool_timeout_s": settings.effective_tool_timeout_s}
