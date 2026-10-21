@@ -28,8 +28,8 @@ AGENT_BASE_DWELL_US = 1.0
 AGENT_TEMPLATE_FRAC = 0.40
 AGENT_MAX_STEPS = 6
 AGENT_MAX_DOSE: float | None = None
-# driftsense.agent.runner default per-tool timeout (acquire/localize/refine).
-AGENT_TOOL_TIMEOUT_S = 15.0
+# Per-tool timeout handed to driftsense.agent.runner (acquire/localize/refine); the runner default is 15 s.
+AGENT_TOOL_TIMEOUT_S = 60.0  # hang guard per tool call, not a latency budget (2-vCPU c8g.large under load)
 
 APPROVAL_TIMEOUT_S = 900  # 15 min operator window
 APPROVAL_POLL_S = 2.0

@@ -88,7 +88,7 @@ takes about 1 to 3 s, plus any operator wait.
   - If a decision is already stored, it is reused. That happens on a redelivery after the worker died mid-wait (the
     sim is deterministic, so the operator is asked the same question).
   - The runner applies one per-tool timeout to every tool, including the blocking approval. The service therefore
-    passes `tool_timeout_s = max(AGENT_TOOL_TIMEOUT_S, APPROVAL_TIMEOUT_S + 60)`.
+    passes `tool_timeout_s = max(AGENT_TOOL_TIMEOUT_S, APPROVAL_TIMEOUT_S + 60)` to runners without a separate `approval_timeout_s`; newer runners get `tool_timeout_s = AGENT_TOOL_TIMEOUT_S` (60 s) plus `approval_timeout_s`.
 - **Result:** `JobStatus.result` is the `LocalizeResult` the terminal decision was taken on, which is the last
   localize before commit or escalate. The post-commit verification frame is reported in `episode.json`. If the
   operator chose rank k, `result.offset` becomes that candidate and the `operator_choice` audit warning is appended.
@@ -145,7 +145,7 @@ takes about 1 to 3 s, plus any operator wait.
 | `APPROVAL_TIMEOUT_S` | worker: how long an episode waits for the operator | 900 |
 | `APPROVAL_POLL_S` | worker: DynamoDB poll interval while waiting | 2 |
 | `TRACE_UPLOAD_S` | worker: trace mirror interval | 2 |
-| `AGENT_TAU`, `AGENT_MAX_STEPS`, `AGENT_MAX_DOSE`, `AGENT_TOOL_TIMEOUT_S` | worker: override the G5 operating point (demo/debug only) | 0.10, 6, none, 15 |
+| `AGENT_TAU`, `AGENT_MAX_STEPS`, `AGENT_MAX_DOSE`, `AGENT_TOOL_TIMEOUT_S` | worker: override the G5 operating point (demo/debug only) | 0.10, 6, none, 60 |
 
 ## Storage layout
 
