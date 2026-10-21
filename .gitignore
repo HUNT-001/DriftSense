@@ -8,7 +8,12 @@ venv/
 
 # Generated dataset images (regenerate with data_gen.dataset_gen)
 outputs/dataset/**/*.png
-outputs/dataset_test/**/*.png
+
+# Sealed / eval datasets: never commit any file (images, manifests, summaries).
+# The seed-9999 sealed set was inadvertently committed from Stage 1; untracked here.
+outputs/dataset_test/
+outputs/dataset_*/
+eval/SEALED_UNLOCK
 
 # Build / scratch
 outputs/*.pdf
