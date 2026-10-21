@@ -90,7 +90,9 @@ def main() -> int:
             res = cap["result"]
             line = loc_lines[i] if i < len(loc_lines) else None
             if line is None or abs(line["margin"] - res.margin.margin) > 1e-9:
-                print(f"{name}: localize #{i} does not reproduce the committed trace; dropped", file=sys.stderr)
+                print(
+                    f"{name}: localize #{i} does not reproduce the committed trace; dropped", file=sys.stderr
+                )
                 continue
             alts: dict[str, str] = {}
             for art in cap["pngs"]:
@@ -134,7 +136,9 @@ def main() -> int:
             "approval_request": approval,
         }
         (OUT / f"{name}.capture.json").write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
-        print(f"{name}: kept {len(entries)}/{len(captured)} localize results, approval={'yes' if approval else 'no'}")
+        print(
+            f"{name}: kept {len(entries)}/{len(captured)} localize results, approval={'yes' if approval else 'no'}"
+        )
 
     agent_tools.ToolRegistry._record_result = orig_record  # type: ignore[method-assign]
     v2_engine.build_all = orig_build_all  # type: ignore[assignment]
