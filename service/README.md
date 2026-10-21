@@ -223,3 +223,16 @@ the default (non-slow) suite. They cover:
 - Worker: the same plus `numpy` and the cv2 from the COOL venv (`opencv 5.0.0` was used in dev; never pip-install opencv on COOL).
 
 **Dev/test:** `moto` (s3, sqs and dynamodb are enough), `httpx`, `requests` (one presigned-PUT round-trip test, skipped if absent), `pytest`, `ruff`.
+
+## Local live stack (no AWS account)
+
+```bash
+cd ui && npm ci && npm run build && cd ..
+python -m service.dev_server --ui ui/dist          # open http://127.0.0.1:8000
+```
+
+The real API (uvicorn) and the real worker (a thread) run against in-process moto fakes of DynamoDB, SQS
+and S3. Demo jobs and agent episodes run the real v2 engine and `driftsense.agent.runner`, including the
+approval card (`vsem-dram-17` escalates). The SPA is served from the same origin, and `/config.json`
+points it at the server. Use this to record the video, or as the screen-share fallback if the deployed
+endpoint is down during judging. Browser uploads do not work here: the presigned PUT targets real S3.
