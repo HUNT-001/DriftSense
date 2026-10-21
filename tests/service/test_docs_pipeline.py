@@ -102,9 +102,10 @@ EXPECTED = {
     "nolabel": "12.3×<!--src:results/accuracy/g2.json#speedup fmt=x nolabel-->",
     "sealed": "47.5% (95% CI 40.1–54.9%) [SEALED]"
     "<!--src:results/sealed/finfet.json#top1_success fmt=pct ci-->",
-    "bench": "1.045× (95% CI 1.006–1.079×)<!--src:results/bench/cool_bench.json"
-    "#speedup.graviton-cool_vs_graviton-pip.kleidicv.geomean.tN fmt=x ci-->",
-    "usd-small": "$0.000119<!--src:results/bench/cool_bench.json#cost.graviton-cool.usd_per_1000 fmt=usd-->",
+    "bench": "2.000× (95% CI 1.978–2.023×)<!--src:results/bench/cool_bench.json"
+    "#speedup.arm-cool_vs_arm-pip.kleidicv.geomean.t1 fmt=x ci-->",
+    "usd-small": "$0.00655<!--src:results/bench/cool_bench.json"
+    "#cost.arm-cool.e2e.auto.usd_per_1000_localizations fmt=usd-->",
     "sha": "0123abc<!--src:results/accuracy/g2.json#@git_sha-->",
     "created": "2026-10-14T09:30:00+00:00<!--src:results/accuracy/g2.json#@created_at-->",
     "date": "2026-10-14<!--src:results/accuracy/g2.json#@created_at fmt=date-->",
@@ -522,85 +523,6 @@ def test_starter_templates_parse_and_render(tmp_path, capsys):
     assert "campaign pending" in draft
 
 
-# --------------------------------------------------------------------------- bench report
-
-
-CMP = "speedup.graviton-cool_vs_graviton-pip"
-
-
-def _real_ws(tmp_path: Path) -> Path:
-    """Fixture results (incl. the trimmed bench report) + the REAL starter templates."""
-    shutil.copytree(FIX / "results", tmp_path / "results")
-    shutil.copytree(REAL_TEMPLATES, tmp_path / "docs" / "templates")
-    return tmp_path
-
-
-def _edit_metric(ws: Path, key: str, metric: str, **fields) -> None:
-    p = ws / "results" / f"{key}.json"
-    d = json.loads(p.read_text(encoding="utf-8"))
-    d["metrics"].setdefault(metric, {"value": 0.0, "unit": "x"}).update(fields)
-    p.write_text(json.dumps(d), encoding="utf-8")
-
-
-def _cool(ws: Path) -> str:
-    assert render(ws) == 0
-    return (ws / "docs" / "COOL_EVIDENCE.md").read_text(encoding="utf-8")
-
-
-def test_cool_evidence_renders_from_bench_report_and_passes_claims(tmp_path, capsys):
-    ws = _real_ws(tmp_path)
-    text = _cool(ws)
-    # verdicts come from the CIs in the JSON, never from the template
-    assert "the candidate is\nfaster, 1.045× (95% CI 1.006–1.079×)" in text
-    assert "there is no\nmeasurable difference (1.030× (95% CI 0.998–1.071×)" in text
-    assert "single measurement, no interval" in text
-    assert text.count("Equality of results: **passed**.") == 3
-    assert "`absdiff.u8` | 1.275× (95% CI 1.196–1.308×)" in text
-    assert "| `graviton-cool` (Graviton, COOL) | $0.432" in text
-    assert "graviton-cool-large" not in text.split("## Per-arm")[1]
-    assert "every arm ran the same commit" in text
-    rc, rep = claims(ws, capsys)
-    assert rc == 0 and codes(rep) == set(), rep["findings"]
-    assert render(ws, "--check") == 0
-
-
-@pytest.mark.parametrize(
-    "lo, hi, needle",
-    [
-        (0.98, 1.10, "there is no\nmeasurable difference"),
-        (0.80, 0.95, "the candidate is\nslower"),
-        (1.01, 1.10, "the candidate is\nfaster"),
-    ],
-)
-def test_cool_headline_follows_the_interval(tmp_path, lo, hi, needle):
-    ws = _real_ws(tmp_path)
-    _edit_metric(ws, "bench/cool_bench", f"{CMP}.kleidicv.geomean.tN", ci_low=lo, ci_high=hi)
-    head = _cool(ws).split("## COOL gain on the same Graviton hardware")[1].split("|")[0]
-    assert needle in head
-
-
-def test_cool_flags_failed_equality_moved_control_and_mixed_commits(tmp_path):
-    ws = _real_ws(tmp_path)
-    eq = "equality.graviton-cool_vs_graviton-pip.offset"
-    _edit_metric(ws, "bench/cool_bench", f"{eq}.pass", value=0.0)
-    _edit_metric(ws, "bench/cool_bench", f"{CMP}.numpy.geomean.tN", ci_low=1.1, ci_high=1.3)
-    _edit_metric(ws, "bench/cool_bench", "meta.git_sha_consistent", value=0.0)
-    text = _cool(ws)
-    assert "Equality of results: **FAILED**." in text
-    assert "**Caution:** the NumPy negative control moved" in text
-    assert "did not all run the same commit" in text
-
-
-def test_cool_optional_production_arm_appears_when_present(tmp_path):
-    ws = _real_ws(tmp_path)
-    for metric, unit, v in [
-        ("cost.graviton-cool-large.usd_per_1000", "USD/1000 localizations", 0.0002),
-        ("cost.graviton-cool-large.usd_per_hour", "USD/h", 0.1),
-    ]:
-        _edit_metric(ws, "bench/cool_bench", metric, value=v, unit=unit)
-    assert "| `graviton-cool-large` (Graviton, COOL, production worker size) | $0.100" in _cool(ws)
-
-
 # --------------------------------------------------------------------------- real results
 
 
@@ -676,6 +598,170 @@ def test_committed_docs_are_up_to_date(capsys):
         )
         == 0
     ), capsys.readouterr().err
+
+
+# --------------------------------------------------------------------------- bench report
+
+# The bench fixture (results/bench/cool_bench{,_docs,_meta}.json) is real output of
+# bench/cool/report.py (b/p6-cool-bench @ 41001de) on the synthetic per-arm builders of
+# tests/bench/test_report.py; bench_smoke/ is the same with --quick arms.
+CMP = "speedup.arm-cool_vs_arm-pip"
+
+
+def _real_ws(tmp_path: Path) -> Path:
+    """Fixture results (incl. the bench report) + the REAL starter templates."""
+    shutil.copytree(FIX / "results", tmp_path / "results")
+    shutil.copytree(REAL_TEMPLATES, tmp_path / "docs" / "templates")
+    return tmp_path
+
+
+def _edit_metric(ws: Path, key: str, metric: str, **fields) -> None:
+    p = ws / "results" / f"{key}.json"
+    d = json.loads(p.read_text(encoding="utf-8"))
+    d["metrics"].setdefault(metric, {"value": 0.0, "unit": "x"}).update(fields)
+    p.write_text(json.dumps(d), encoding="utf-8")
+
+
+def _drop_metrics(ws: Path, key: str, prefix: str) -> None:
+    p = ws / "results" / f"{key}.json"
+    d = json.loads(p.read_text(encoding="utf-8"))
+    d["metrics"] = {k: v for k, v in d["metrics"].items() if not k.startswith(prefix)}
+    p.write_text(json.dumps(d), encoding="utf-8")
+
+
+def _cool(ws: Path) -> str:
+    assert render(ws) == 0
+    return (ws / "docs" / "COOL_EVIDENCE.md").read_text(encoding="utf-8")
+
+
+def _visible(text: str) -> str:
+    return re.sub(r"<!--src:[^>]*-->", "", text)
+
+
+def test_cool_evidence_renders_from_bench_report_and_passes_claims(tmp_path, capsys):
+    ws = _real_ws(tmp_path)
+    raw = _cool(ws)
+    text = _visible(raw)
+    # verdicts come from the CIs in the JSON, never from the template
+    assert (
+        "| End-to-end throughput, service mode `auto` | 2.00× (95% CI 2.00–2.00×), candidate faster |" in text
+    )
+    assert "| Agent episodes per hour | 1.000× (95% CI 0.998–1.002×), no measurable difference |" in text
+    # n = 2 ops in the group: report.py's MIN_N rule, no verdict
+    assert (
+        "| KleidiCV-listed ops, one thread | 2.000× (95% CI 1.978–2.023×), too few samples for a verdict |"
+        in text
+    )
+    # Amdahl / census section
+    assert (
+        "| `auto` | 25.0% | 25.0% | not recorded | 1.333× | 1.143× | 1.053× (95% CI 1.040–1.066×), candidate faster |"
+        in text
+    )
+    assert "could make the\npipeline at most 1.333× faster" in text
+    assert text.count("Equality of results: **passed**.") == 3
+    assert (
+        "| `arm-cool` | Graviton4, c8g.4xlarge, COOL | `c8g.4xlarge` | `5.0.0` | `/opt/cool/venvs/python_3.12/lib/cv2/__init__.py` | true |"
+        in text
+    )
+    assert "COOL arm AMI: `ami-123`" in text
+    assert (
+        "| `arm-cool` (Graviton4, c8g.4xlarge, COOL) | $0.472 | $0.00655 (95% CI $0.00654–$0.00655) |" in text
+    )
+    assert "`GaussianBlur.s3_localnorm_f32.t1` | 2.00× (95% CI 1.97–2.03×), candidate faster" in text
+    assert "every arm ran the same commit" in text and "campaign pending" not in text
+    # the string sidecar is traced too
+    assert "<!--src:results/bench/cool_bench_docs.json#['arm.arm-cool.ami_id'] q code-->" in raw
+    rc, rep = claims(ws, capsys)
+    assert rc == 0 and codes(rep) == set(), rep["findings"]
+    assert render(ws, "--check") == 0
+
+
+@pytest.mark.parametrize(
+    "lo, hi, needle",
+    [
+        (0.98, 1.10, "no measurable difference"),
+        (0.80, 0.95, "candidate slower"),
+        (1.01, 1.10, "candidate faster"),
+    ],
+)
+def test_cool_headline_follows_the_interval(tmp_path, lo, hi, needle):
+    ws = _real_ws(tmp_path)
+    _edit_metric(ws, "bench/cool_bench", f"{CMP}.e2e.auto.throughput", value=1.05, ci_low=lo, ci_high=hi)
+    head = _visible(_cool(ws)).split("## Headline")[1].split("\n| Agent")[0]
+    assert head.rstrip().endswith(needle + " |"), head
+
+
+def test_cool_flags_failed_equality_moved_control_and_mixed_commits(tmp_path):
+    ws = _real_ws(tmp_path)
+    _edit_metric(ws, "bench/cool_bench", "equality.arm-cool_vs_arm-pip.offset.pass", value=0.0)
+    _edit_metric(ws, "bench/cool_bench", "equality.arm-cool_vs_arm-pip.pass", value=0.0)
+    _edit_metric(ws, "bench/cool_bench", f"{CMP}.numpy.geomean.t1", ci_low=1.1, ci_high=1.3, n=3)
+    _edit_metric(ws, "bench/cool_bench", "meta.git_sha_consistent", value=0.0)
+    text = _visible(_cool(ws))
+    assert "Equality of results: **FAILED**." in text
+    assert "their speed-ups are not comparable" in text
+    assert "**Caution:** the NumPy negative control\nmoved" in text
+    assert "did not all run the same commit" in text
+
+
+def test_cool_unbounded_amdahl_and_missing_production_arm(tmp_path):
+    ws = _real_ws(tmp_path)
+    _edit_metric(ws, "bench/cool_bench", "amdahl.arm-cool_vs_arm-pip.auto.upper_bound_speedup", value=-1.0)
+    _drop_metrics(ws, "bench/cool_bench", "cost.arm-cool-large.")
+    text = _visible(_cool(ws))
+    assert "| unbounded |" in text and "at most" not in text
+    assert "`arm-cool-large`" not in text.split("## Cost")[1]
+
+
+def _smoke_ws(tmp_path: Path) -> Path:
+    ws = _real_results_ws(tmp_path) if (REAL_RESULTS / "sealed").is_dir() else _real_ws(tmp_path)
+    (ws / "results" / "bench").mkdir(parents=True, exist_ok=True)
+    for f in (FIX / "bench_smoke").glob("*.json"):
+        shutil.copy(f, ws / "results" / "bench" / f.name)
+    return ws
+
+
+def test_local_smoke_bench_results_are_refused(tmp_path, capsys):
+    ws = _smoke_ws(tmp_path)
+    assert render(ws, "--include-readme") == 0
+    cool = (ws / "docs" / "COOL_EVIDENCE.md").read_text(encoding="utf-8")
+    assert "refused" in cool and "local smoke run" in cool and "<!--src:" not in cool
+    if (ws / "SUBMISSION.md").exists():
+        sub = (ws / "SUBMISSION.md").read_text(encoding="utf-8")
+        assert "The only benchmark file is a local smoke" in sub
+        assert "cool_bench.json#" not in sub
+    rc, rep = claims(ws, capsys, "SUBMISSION.md")
+    assert rc == 0, rep["findings"]
+
+
+@needs_real
+@pytest.mark.parametrize("with_cv5", [True, False])
+def test_opencv_version_subsection_both_branches(tmp_path, capsys, with_cv5):
+    ws = _real_results_ws(tmp_path)
+    cv5 = ws / "results" / "bench" / "cv5_equivalence.json"
+    if with_cv5:
+        cv5.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(FIX / "cv5" / "cv5_equivalence.json", cv5)
+    elif cv5.exists():
+        cv5.unlink()
+    assert render(ws, "--include-readme") == 0
+    sub = _visible((ws / "SUBMISSION.md").read_text(encoding="utf-8"))
+    readme = _visible((ws / "README.md").read_text(encoding="utf-8"))
+    arch = _visible((ws / "docs" / "ARCHITECTURE.md").read_text(encoding="utf-8"))
+    assert "#### OpenCV version of the reported numbers" in sub
+    assert "results files record OpenCV 4.12.0 on\nAMD64" in sub
+    if with_cv5:
+        assert "on OpenCV\n5.0.0 over 320\npair evaluations and 8 agent" in sub
+        assert "It agrees on every commit-or-escalate decision and every top-1 hit" in sub
+        assert "The offsets are not bit-identical: 95.6% [DEV]" in sub
+        assert "9 [DEV] evaluations differ by more" in sub
+        assert "agrees on every decision and top-1 hit" in readme
+        assert "gives the same decisions and top-1 hits" in arch
+    else:
+        assert "No OpenCV 5 re-run of these numbers exists yet" in sub
+        assert "equivalence" not in readme and "equivalence" not in arch
+    rc, rep = claims(ws, capsys, "SUBMISSION.md")
+    assert rc == 0 and codes(rep) == set(), rep["findings"]
 
 
 # --------------------------------------------------------------------------- A-grammar
@@ -912,20 +998,23 @@ def test_logic_helpers(ws):
         "{% set B = 'bench/cool_bench' %}"
         "{{ has(B) }} {{ has(B, 'meta.n_arms') }} {{ has(B, 'nope') }} {{ has('x/y') }}\n"
         "{{ metrics(B, 'cost.x86-pip.') | join(',') }}\n"
-        "{{ ci_verdict(B, '" + CMP + ".kleidicv.geomean.tN') }} "
-        "{{ ci_verdict(B, '" + CMP + ".numpy.geomean.tN') }} "
-        "{{ ci_verdict(B, '" + CMP + ".control.geomean.t1') }} "
-        "{{ ci_verdict(B, '" + CMP + ".e2e.throughput') }} "
+        "{{ ci_verdict(B, '" + CMP + ".kleidicv.geomean.t1') }} "
+        "{{ ci_verdict(B, '" + CMP + ".numpy.geomean.t1') }} "
+        "{{ ci_verdict(B, '" + CMP + ".kleidicv.geomean.t1', null=2.5) }} "
+        "{{ ci_verdict(B, 'amdahl.arm-cool_vs_arm-pip.auto.predicted_speedup') }} "
         "{{ ci_verdict(B, 'meta.n_arms') }}\n"
-        "{{ val(B, 'meta.n_arms') == 3 }} {{ val(B, 'meta.n_arms') > 2.5 }} "
-        "{{ val(B, 'meta.n_arms', 'n') == 3 }} {{ val(B, 'meta.git_sha_consistent') | string "
+        "{{ val(B, 'meta.n_arms') == 4 }} {{ val(B, 'meta.n_arms') > 3.5 }} "
+        "{{ val(B, 'meta.n_arms', 'n') == 4 }} {{ val(B, 'meta.git_sha_consistent') | string "
         "if false else 'ok' }}\n"
     )
     rc, text = _render_one(ws, body)
     assert rc == 0, text
     lines = text.splitlines()[1:]
     assert lines[0] == "True True False False"
-    assert lines[1] == "cost.x86-pip.usd_per_1000,cost.x86-pip.usd_per_hour"
+    assert lines[1] == (
+        "cost.x86-pip.agent.usd_per_1000_episodes,"
+        "cost.x86-pip.e2e.auto.usd_per_1000_localizations,cost.x86-pip.usd_per_hour"
+    )
     assert lines[2] == "higher includes lower no_ci no_ci"
     assert lines[3] == "True True False ok"
 

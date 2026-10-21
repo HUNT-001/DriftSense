@@ -40,9 +40,19 @@ The sealed gate did not pass.
 {% if val(V2, "top1.pooled") < val(V1, "top1.pooled") %}
 v2 single-shot top-1 is below the v1 baseline.
 {% endif %}
-These results come from synthetic images on a development machine; the full
-evaluation, the failed rules and the limitations are in
-[SUBMISSION.md](SUBMISSION.md).
+These results come from synthetic images on a development machine running
+OpenCV {{ meta(V2, "env.opencv") }}; the full evaluation, the failed rules and
+the limitations are in [SUBMISSION.md](SUBMISSION.md).
+{% if exists("bench/cv5_equivalence") %}
+{% set EQ = "bench/cv5_equivalence" %}
+A DEV equivalence check on OpenCV {{ meta(EQ, "env.opencv") }}
+{% if val(EQ, "pairs.decision_agreement") == 1 and val(EQ, "pairs.top1_hit_agreement") == 1 %}
+agrees on every decision and top-1 hit (offsets are not bit-identical; details in
+[SUBMISSION.md](SUBMISSION.md)).
+{% else %}
+does not agree on every decision; see [SUBMISSION.md](SUBMISSION.md).
+{% endif %}
+{% endif %}
 
 ## Quickstart
 

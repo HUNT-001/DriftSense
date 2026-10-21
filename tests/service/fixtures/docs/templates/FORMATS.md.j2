@@ -18,8 +18,8 @@
 - n: {{ n("accuracy/g2", "speedup") }}
 - nolabel: {{ m("accuracy/g2", "speedup", label=false) }}
 - sealed: {{ m("sealed/finfet", "top1_success", fmt="pct", ci=true) }}
-- bench: {{ m("bench/cool_bench", "speedup.graviton-cool_vs_graviton-pip.kleidicv.geomean.tN", ci=true) }}
-- usd-small: {{ m("bench/cool_bench", "cost.graviton-cool.usd_per_1000", fmt="usd") }}
+- bench: {{ m("bench/cool_bench", "speedup.arm-cool_vs_arm-pip.kleidicv.geomean.t1", ci=true) }}
+- usd-small: {{ m("bench/cool_bench", "cost.arm-cool.e2e.auto.usd_per_1000_localizations", fmt="usd") }}
 - sha: {{ meta("accuracy/g2", "git_sha") }}
 - created: {{ meta("accuracy/g2", "created_at") }}
 - date: {{ meta("accuracy/g2", "created_at", fmt="date") }}

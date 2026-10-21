@@ -1,0 +1,224 @@
+{
+  "arm-cool_vs_arm-pip.agent.throughput": 1.0,
+  "arm-cool_vs_arm-pip.agent.throughput.ci": [
+    0.998,
+    1.002
+  ],
+  "arm-cool_vs_arm-pip.agent.throughput.verdict": "no measurable difference",
+  "arm-cool_vs_arm-pip.amdahl.auto.kleidicv_share": 0.25,
+  "arm-cool_vs_arm-pip.amdahl.auto.predicted": 1.1429,
+  "arm-cool_vs_arm-pip.e2e.auto.latency.tN": 1.0,
+  "arm-cool_vs_arm-pip.e2e.auto.latency.tN.ci": [
+    0.9899,
+    1.0101
+  ],
+  "arm-cool_vs_arm-pip.e2e.auto.latency.tN.verdict": "no measurable difference",
+  "arm-cool_vs_arm-pip.e2e.auto.throughput": 2.0,
+  "arm-cool_vs_arm-pip.e2e.auto.throughput.ci": [
+    1.996,
+    2.004
+  ],
+  "arm-cool_vs_arm-pip.e2e.auto.throughput.verdict": "candidate faster",
+  "arm-cool_vs_arm-pip.geomean.control.t1": 1.0,
+  "arm-cool_vs_arm-pip.geomean.control.t1.ci": [
+    0.9799,
+    1.0213
+  ],
+  "arm-cool_vs_arm-pip.geomean.control.t1.verdict": "no measurable difference",
+  "arm-cool_vs_arm-pip.geomean.kleidicv.t1": 2.0,
+  "arm-cool_vs_arm-pip.geomean.kleidicv.t1.ci": [
+    1.9783,
+    2.0235
+  ],
+  "arm-cool_vs_arm-pip.geomean.kleidicv.t1.verdict": "candidate faster",
+  "arm-cool_vs_arm-pip.geomean.numpy.t1": 1.0,
+  "arm-cool_vs_arm-pip.geomean.numpy.t1.ci": [
+    0.9846,
+    1.015
+  ],
+  "arm-cool_vs_arm-pip.geomean.numpy.t1.verdict": "no measurable difference",
+  "arm-cool_vs_arm-pip.stage.auto.total.t1": 1.0526,
+  "arm-cool_vs_arm-pip.stage.auto.total.t1.ci": [
+    1.0403,
+    1.0657
+  ],
+  "arm-cool_vs_arm-pip.stage.auto.total.t1.verdict": "candidate faster",
+  "arm-cool_vs_x86-pip.agent.throughput": 1.0,
+  "arm-cool_vs_x86-pip.agent.throughput.ci": [
+    0.998,
+    1.002
+  ],
+  "arm-cool_vs_x86-pip.agent.throughput.verdict": "no measurable difference",
+  "arm-cool_vs_x86-pip.amdahl.auto.kleidicv_share": 0.25,
+  "arm-cool_vs_x86-pip.amdahl.auto.predicted": 1.1429,
+  "arm-cool_vs_x86-pip.e2e.auto.latency.tN": 1.0,
+  "arm-cool_vs_x86-pip.e2e.auto.latency.tN.ci": [
+    0.9899,
+    1.0101
+  ],
+  "arm-cool_vs_x86-pip.e2e.auto.latency.tN.verdict": "no measurable difference",
+  "arm-cool_vs_x86-pip.e2e.auto.throughput": 2.4,
+  "arm-cool_vs_x86-pip.e2e.auto.throughput.ci": [
+    2.3952,
+    2.4048
+  ],
+  "arm-cool_vs_x86-pip.e2e.auto.throughput.verdict": "candidate faster",
+  "arm-cool_vs_x86-pip.geomean.control.t1": 1.0,
+  "arm-cool_vs_x86-pip.geomean.control.t1.ci": [
+    0.9799,
+    1.0213
+  ],
+  "arm-cool_vs_x86-pip.geomean.control.t1.verdict": "no measurable difference",
+  "arm-cool_vs_x86-pip.geomean.kleidicv.t1": 2.0,
+  "arm-cool_vs_x86-pip.geomean.kleidicv.t1.ci": [
+    1.9783,
+    2.0235
+  ],
+  "arm-cool_vs_x86-pip.geomean.kleidicv.t1.verdict": "candidate faster",
+  "arm-cool_vs_x86-pip.geomean.numpy.t1": 1.0,
+  "arm-cool_vs_x86-pip.geomean.numpy.t1.ci": [
+    0.9846,
+    1.015
+  ],
+  "arm-cool_vs_x86-pip.geomean.numpy.t1.verdict": "no measurable difference",
+  "arm-cool_vs_x86-pip.stage.auto.total.t1": 1.0526,
+  "arm-cool_vs_x86-pip.stage.auto.total.t1.ci": [
+    1.0403,
+    1.0657
+  ],
+  "arm-cool_vs_x86-pip.stage.auto.total.t1.verdict": "candidate faster",
+  "arm-pip_vs_x86-pip.agent.throughput": 1.0,
+  "arm-pip_vs_x86-pip.agent.throughput.ci": [
+    0.998,
+    1.002
+  ],
+  "arm-pip_vs_x86-pip.agent.throughput.verdict": "no measurable difference",
+  "arm-pip_vs_x86-pip.amdahl.auto.kleidicv_share": 0.25,
+  "arm-pip_vs_x86-pip.amdahl.auto.predicted": 1.0,
+  "arm-pip_vs_x86-pip.e2e.auto.latency.tN": 1.0,
+  "arm-pip_vs_x86-pip.e2e.auto.latency.tN.ci": [
+    0.9899,
+    1.0101
+  ],
+  "arm-pip_vs_x86-pip.e2e.auto.latency.tN.verdict": "no measurable difference",
+  "arm-pip_vs_x86-pip.e2e.auto.throughput": 1.2,
+  "arm-pip_vs_x86-pip.e2e.auto.throughput.ci": [
+    1.1976,
+    1.2024
+  ],
+  "arm-pip_vs_x86-pip.e2e.auto.throughput.verdict": "candidate faster",
+  "arm-pip_vs_x86-pip.geomean.control.t1": 1.0,
+  "arm-pip_vs_x86-pip.geomean.control.t1.ci": [
+    0.9799,
+    1.0213
+  ],
+  "arm-pip_vs_x86-pip.geomean.control.t1.verdict": "no measurable difference",
+  "arm-pip_vs_x86-pip.geomean.kleidicv.t1": 1.0,
+  "arm-pip_vs_x86-pip.geomean.kleidicv.t1.ci": [
+    0.9891,
+    1.0117
+  ],
+  "arm-pip_vs_x86-pip.geomean.kleidicv.t1.verdict": "no measurable difference",
+  "arm-pip_vs_x86-pip.geomean.numpy.t1": 1.0,
+  "arm-pip_vs_x86-pip.geomean.numpy.t1.ci": [
+    0.9846,
+    1.015
+  ],
+  "arm-pip_vs_x86-pip.geomean.numpy.t1.verdict": "no measurable difference",
+  "arm-pip_vs_x86-pip.stage.auto.total.t1": 1.0,
+  "arm-pip_vs_x86-pip.stage.auto.total.t1.ci": [
+    0.9883,
+    1.0124
+  ],
+  "arm-pip_vs_x86-pip.stage.auto.total.t1.verdict": "no measurable difference",
+  "arm.arm-cool.ami_id": "ami-123",
+  "arm.arm-cool.arch": "aarch64",
+  "arm.arm-cool.build_kleidicv_lines": [
+    "Custom HAL: YES (kleidicv (ver 0.6.0))"
+  ],
+  "arm.arm-cool.build_mentions_kleidicv": true,
+  "arm.arm-cool.cool": true,
+  "arm.arm-cool.cool_version_files": null,
+  "arm.arm-cool.cv2_file": "/opt/cool/venvs/python_3.12/lib/cv2/__init__.py",
+  "arm.arm-cool.cv2_version": "5.0.0",
+  "arm.arm-cool.git_sha": "abc123",
+  "arm.arm-cool.instance_type": "c8g.4xlarge",
+  "arm.arm-cool.ldd_mentions_kleidicv": null,
+  "arm.arm-cool.numpy": "2.5.4",
+  "arm.arm-cool.opencv_dists": null,
+  "arm.arm-cool.product_codes": null,
+  "arm.arm-cool.python": "3.12.3",
+  "arm.arm-cool.quick": true,
+  "arm.arm-cool.region": "ap-south-1",
+  "arm.arm-pip.ami_id": "ami-123",
+  "arm.arm-pip.arch": "aarch64",
+  "arm.arm-pip.build_kleidicv_lines": [],
+  "arm.arm-pip.build_mentions_kleidicv": false,
+  "arm.arm-pip.cool": false,
+  "arm.arm-pip.cool_version_files": null,
+  "arm.arm-pip.cv2_file": "/venv/cv2/__init__.py",
+  "arm.arm-pip.cv2_version": "5.0.0",
+  "arm.arm-pip.git_sha": "abc123",
+  "arm.arm-pip.instance_type": "c8g.4xlarge",
+  "arm.arm-pip.ldd_mentions_kleidicv": null,
+  "arm.arm-pip.numpy": "2.5.4",
+  "arm.arm-pip.opencv_dists": null,
+  "arm.arm-pip.product_codes": null,
+  "arm.arm-pip.python": "3.12.3",
+  "arm.arm-pip.quick": true,
+  "arm.arm-pip.region": "ap-south-1",
+  "arm.x86-pip.ami_id": "ami-123",
+  "arm.x86-pip.arch": "x86_64",
+  "arm.x86-pip.build_kleidicv_lines": [],
+  "arm.x86-pip.build_mentions_kleidicv": false,
+  "arm.x86-pip.cool": false,
+  "arm.x86-pip.cool_version_files": null,
+  "arm.x86-pip.cv2_file": "/venv/cv2/__init__.py",
+  "arm.x86-pip.cv2_version": "5.0.0",
+  "arm.x86-pip.git_sha": "abc123",
+  "arm.x86-pip.instance_type": "c7i.4xlarge",
+  "arm.x86-pip.ldd_mentions_kleidicv": null,
+  "arm.x86-pip.numpy": "2.5.4",
+  "arm.x86-pip.opencv_dists": null,
+  "arm.x86-pip.product_codes": null,
+  "arm.x86-pip.python": "3.12.3",
+  "arm.x86-pip.quick": true,
+  "arm.x86-pip.region": "ap-south-1",
+  "cost.arm-cool.agent.usd_per_1000": 0.785548,
+  "cost.arm-cool.e2e.auto.usd_per_1000": 0.006546,
+  "cost.arm-cool.usd_per_hour": 0.4718,
+  "cost.arm-pip.agent.usd_per_1000": 0.718948,
+  "cost.arm-pip.e2e.auto.usd_per_1000": 0.011982,
+  "cost.arm-pip.usd_per_hour": 0.4318,
+  "cost.x86-pip.agent.usd_per_1000": 1.188811,
+  "cost.x86-pip.e2e.auto.usd_per_1000": 0.023776,
+  "cost.x86-pip.usd_per_hour": 0.714,
+  "equality.arm-cool_vs_arm-pip.offset_max_abs_diff_px": 0.0,
+  "equality.arm-cool_vs_arm-pip.pass": true,
+  "equality.arm-cool_vs_x86-pip.offset_max_abs_diff_px": 0.0,
+  "equality.arm-cool_vs_x86-pip.pass": true,
+  "equality.arm-pip_vs_x86-pip.offset_max_abs_diff_px": 0.0,
+  "equality.arm-pip_vs_x86-pip.pass": true,
+  "headline.cool_vs_pip.agent_throughput": 1.0,
+  "headline.cool_vs_pip.agent_throughput.ci": [
+    0.998003992015968,
+    1.002
+  ],
+  "headline.cool_vs_pip.agent_throughput.verdict": "no measurable difference",
+  "headline.cool_vs_pip.e2e_auto_throughput": 2.0,
+  "headline.cool_vs_pip.e2e_auto_throughput.ci": [
+    1.996007984031936,
+    2.004
+  ],
+  "headline.cool_vs_pip.e2e_auto_throughput.verdict": "candidate faster",
+  "headline.cool_vs_pip.kleidicv_geomean_t1": 2.0,
+  "headline.cool_vs_pip.kleidicv_geomean_t1.ci": [
+    1.978255193269681,
+    2.023491073176055
+  ],
+  "headline.cool_vs_pip.kleidicv_geomean_t1.verdict": "insufficient samples (n<3)",
+  "prices.as_of": "2026-10-21",
+  "prices.region": "ap-south-1",
+  "smoke": true,
+  "verdict.no_diff_phrase": "no measurable difference"
+}

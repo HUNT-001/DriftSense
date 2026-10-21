@@ -145,10 +145,10 @@ per-op metrics. These helpers do that without ever printing a number:
 | `val(key, metric, field="value")` | an opaque number for comparisons and truthiness only (`val(k, "x.pass")`, `val(k, "x") > 1`); `field` is `value`/`ci_low`/`ci_high`/`n`. Printing it (`{{ val(...) }}`) is a render error, so printed numbers always go through `m()`/`n()` |
 
 ```jinja
-{% set v = ci_verdict("bench/cool_bench", "speedup.graviton-cool_vs_graviton-pip.kleidicv.geomean.tN") %}
+{% set v = ci_verdict("bench/cool_bench", "speedup.arm-cool_vs_arm-pip.e2e.auto.throughput") %}
 {% if v == "higher" %}COOL is faster{% elif v == "lower" %}COOL is slower{% else %}no measurable difference{% endif %}:
-{{ m("bench/cool_bench", "speedup.graviton-cool_vs_graviton-pip.kleidicv.geomean.tN", fmt="x", ci=true) }}
-{% for name in metrics("bench/cool_bench", "cost.") if name.endswith(".usd_per_1000") %}...{% endfor %}
+{{ m("bench/cool_bench", "speedup.arm-cool_vs_arm-pip.e2e.auto.throughput", fmt="x", ci=true) }}
+{% for name in metrics("bench/cool_bench", "cost.") if name.endswith(".usd_per_1000_localizations") %}...{% endfor %}
 ```
 
 Never hard-code a conclusion ("COOL is faster") in prose: derive it from

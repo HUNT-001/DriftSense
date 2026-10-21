@@ -53,9 +53,15 @@ full call list per module is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | S9 Explain | Heatmaps, candidate gallery, overlay | `applyColorMap`, `addWeighted`, `drawMarker`, `putText`, `imencode` |
 
 The stack pins `opencv-python-headless` 5.0.0.93 for development and the
-COOL 3.1 build on the worker. The evaluation numbers below were produced on a
-development machine whose results files record OpenCV
-4.12.0<!--src:results/sealed/v2_single.json#@env.opencv--> on AMD64<!--src:results/sealed/v2_single.json#@env.arch-->, not on the COOL worker.
+COOL 3.1 build on the worker.
+
+#### OpenCV version of the reported numbers
+
+Every DEV and sealed result below was produced on a development machine whose
+results files record OpenCV 4.12.0<!--src:results/sealed/v2_single.json#@env.opencv--> on
+AMD64<!--src:results/sealed/v2_single.json#@env.arch-->, not OpenCV 5 and not the COOL worker.
+No OpenCV 5 re-run of these numbers exists yet, so they are OpenCV
+4.12.0<!--src:results/sealed/v2_single.json#@env.opencv--> numbers.
 
 ### AWS and COOL
 
@@ -69,9 +75,9 @@ per-stage metrics, a dashboard, a canary and alarms live in CloudWatch, with an
 AWS Budgets alert on cost. GitHub Actions deploys the CDK app through OIDC. See
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-**COOL benchmark: campaign pending.** The three-arm COOL campaign (x86 with
-PyPI OpenCV, Graviton with PyPI OpenCV, Graviton with COOL) has not run yet, so
-this submission makes no COOL speed-up or cost claim. The method and the
+**COOL benchmark: campaign pending.** The COOL campaign (x86 with PyPI
+OpenCV, Graviton with PyPI OpenCV, Graviton with COOL) has not run yet, so this
+submission makes no COOL speed-up or cost claim. The method and the
 reproduction steps are in [docs/COOL_EVIDENCE.md](docs/COOL_EVIDENCE.md), which
 is regenerated from the benchmark results file once it exists.
 

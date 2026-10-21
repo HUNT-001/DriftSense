@@ -35,8 +35,9 @@ flowchart LR
   cdk -.-> api
   subgraph bench["Ephemeral bench stack (-c bench=true), self-terminating"]
     b1["x86-pip: c7i.4xlarge, PyPI OpenCV"]
-    b2["graviton-pip: c8g.4xlarge, PyPI OpenCV"]
-    b3["graviton-cool: c8g.4xlarge, COOL 3.1 AMI"]
+    b2["arm-pip: c8g.4xlarge, PyPI OpenCV"]
+    b3["arm-cool: c8g.4xlarge, COOL AMI"]
+    b4["arm-cool-large: c8g.large, COOL AMI"]
   end
   bench -- "run_all.sh uploads to the bench/ prefix" --> data
 ```
@@ -54,7 +55,8 @@ flowchart LR
   TLS-only bucket policies, encryption at rest, size-capped presigned uploads,
   API throttling, a cost budget with alerts, and a deploy role that GitHub can
   assume only from `main` through OIDC (no long-lived keys).
-- **Bench stack**: three identical-input benchmark instances that upload their
+- **Bench stack**: one self-terminating instance per benchmark arm (`x86-pip`,
+  `arm-pip`, `arm-cool`, `arm-cool-large`), all on identical inputs, that upload their
   results to S3 and terminate themselves; it exists only for a benchmark
   campaign (see [COOL_EVIDENCE.md](COOL_EVIDENCE.md)).
 
@@ -105,8 +107,10 @@ cascade on the short-list rather than replacing it.
 
 **What is not claimed.** The S5 contour path is not implemented in this build,
 so DRAM-like arrays go through the same residual path as line arrays. The hot
-path has no per-pixel Python loops; the numerical results reported elsewhere
-state which OpenCV build produced them.
+path has no per-pixel Python loops.
+The accuracy results were produced with OpenCV
+4.12.0<!--src:results/sealed/v2_single.json#@env.opencv--> on a development machine, not on
+the worker.
 
 ## 3. Agent loop: commit, re-acquire or escalate
 

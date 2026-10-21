@@ -76,9 +76,35 @@ full call list per module is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | S9 Explain | Heatmaps, candidate gallery, overlay | `applyColorMap`, `addWeighted`, `drawMarker`, `putText`, `imencode` |
 
 The stack pins `opencv-python-headless` 5.0.0.93 for development and the
-COOL 3.1 build on the worker. The evaluation numbers below were produced on a
-development machine whose results files record OpenCV
-{{ meta(V2, "env.opencv") }} on {{ meta(V2, "env.arch") }}, not on the COOL worker.
+COOL 3.1 build on the worker.
+
+#### OpenCV version of the reported numbers
+
+Every DEV and sealed result below was produced on a development machine whose
+results files record OpenCV {{ meta(V2, "env.opencv") }} on
+{{ meta(V2, "env.arch") }}, not OpenCV 5 and not the COOL worker.
+{% set EQ = "bench/cv5_equivalence" %}
+{% if exists(EQ) %}
+A DEV-only equivalence check reran the frozen v2 engine on OpenCV
+{{ meta(EQ, "env.opencv") }} over {{ n(EQ, "pairs.decision_agreement", label=false) }}
+pair evaluations and {{ n(EQ, "episodes.outcome_agreement", label=false) }} agent
+episodes. {% if val(EQ, "pairs.decision_agreement") == 1 and val(EQ, "pairs.top1_hit_agreement") == 1 %}It agrees on every commit-or-escalate decision and every top-1 hit{% else %}Decision agreement is {{ m(EQ, "pairs.decision_agreement", fmt="pct") }} and top-1 hit agreement {{ m(EQ, "pairs.top1_hit_agreement", fmt="pct") }}{% endif %} 
+(top-1 hit rate {{ m(EQ, "pairs.top1_hit_rate.base", fmt="pct") }} on the old
+version and {{ m(EQ, "pairs.top1_hit_rate.cand", fmt="pct") }} on the new one){% if val(EQ, "episodes.outcome_agreement") == 1 and val(EQ, "episodes.steps_agreement") == 1 %}, and every agent episode ends with the same outcome after the same number of steps{% else %}; agent outcome agreement is {{ m(EQ, "episodes.outcome_agreement", fmt="pct") }}{% endif %}.
+{% if val(EQ, "pairs.offset_max_abs_diff_px") > 0 %}
+The offsets are not bit-identical: {{ m(EQ, "pairs.offset_within_0p1px_rate", fmt="pct") }}
+of evaluations agree within a tenth of a pixel, the median margin difference is
+{{ m(EQ, "pairs.margin_median_abs_diff", fmt="raw") }} (maximum
+{{ m(EQ, "pairs.margin_max_abs_diff", fmt="f2") }}), and
+{{ m(EQ, "pairs.offset_diff_gt_1px.n", fmt="int") }} evaluations differ by more
+than a pixel (largest {{ m(EQ, "pairs.offset_max_abs_diff_px", fmt="f1") }} px), of which
+{{ m(EQ, "pairs.offset_diff_gt_1px_both_wrong.n", fmt="int") }} are top-1 misses on both versions.
+{% endif %}
+This check is on the development split only; the sealed numbers were not re-run.
+{% else %}
+No OpenCV 5 re-run of these numbers exists yet, so they are OpenCV
+{{ meta(V2, "env.opencv") }} numbers.
+{% endif %}
 
 ### AWS and COOL
 
@@ -92,18 +118,39 @@ per-stage metrics, a dashboard, a canary and alarms live in CloudWatch, with an
 AWS Budgets alert on cost. GitHub Actions deploys the CDK app through OIDC. See
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-{% if exists(B) and has(B, "speedup.graviton-cool_vs_graviton-pip.kleidicv.geomean.tN") %}
-{% set kc = "speedup.graviton-cool_vs_graviton-pip.kleidicv.geomean.tN" %}
-{% set kv = ci_verdict(B, kc) %}
-COOL versus PyPI OpenCV on the same Graviton instance, KleidiCV-listed
-operations, all threads (geometric mean):
-{{ m(B, kc, fmt="x", ci=true) }}{% if kv == "higher" %}, so COOL is faster{% elif kv == "lower" %}, so COOL is slower{% else %}, which is no measurable difference{% endif %}.
-The full campaign, including controls, equality checks and cost per thousand
-localizations, is in [docs/COOL_EVIDENCE.md](docs/COOL_EVIDENCE.md).
+{% set smoke = exists(B) and has(B, "meta.local_smoke") and val(B, "meta.local_smoke") %}
+{% set H = "speedup.arm-cool_vs_arm-pip." %}
+{% if exists(B) and not smoke and has(B, H ~ "e2e.auto.throughput") %}
+{% set tv = ci_verdict(B, H ~ "e2e.auto.throughput") %}
+COOL versus PyPI OpenCV on the same Graviton instance type, end-to-end
+throughput in the service's default mode:
+{{ m(B, H ~ "e2e.auto.throughput", fmt="x", ci=true) }}{% if val(B, H ~ "e2e.auto.throughput", "n") < 3 %}, too few samples for a verdict{% elif tv == "higher" %}, so COOL is faster{% elif tv == "lower" %}, so COOL is slower{% elif tv == "includes" %}, which is no measurable difference{% endif %}.
+{% if has(B, "amdahl.arm-cool_vs_arm-pip.auto.upper_bound_speedup") and has(B, "arm.arm-pip.census.auto.share.kleidicv") and val(B, "amdahl.arm-cool_vs_arm-pip.auto.upper_bound_speedup") > 0 %}
+KleidiCV-listed operations take {{ m(B, "arm.arm-pip.census.auto.share.kleidicv", fmt="pct") }}
+of the pipeline's time, which caps what COOL can do for the engine stages at
+{{ m(B, "amdahl.arm-cool_vs_arm-pip.auto.upper_bound_speedup", fmt="x") }}; the
+measured engine-stage speed-up is
+{{ m(B, H ~ "stage.auto.total.t1", fmt="x", ci=true) }}.
+{% endif %}
+{% set ca = "arm-cool-large" if has(B, "cost.arm-cool-large.e2e.auto.usd_per_1000_localizations") else "arm-cool" %}
+{% if has(B, "cost." ~ ca ~ ".e2e.auto.usd_per_1000_localizations") and has(B, "cost.x86-pip.e2e.auto.usd_per_1000_localizations") %}
+Cost per thousand localizations on the COOL worker (`{{ ca }}`):
+{{ m(B, "cost." ~ ca ~ ".e2e.auto.usd_per_1000_localizations", fmt="usd") }}, against
+{{ m(B, "cost.x86-pip.e2e.auto.usd_per_1000_localizations", fmt="usd") }} for PyPI OpenCV on x86.
+{% endif %}
+{% if has(B, "equality.arm-cool_vs_arm-pip.pass") and not val(B, "equality.arm-cool_vs_arm-pip.pass") %}
+**The COOL and PyPI arms did not produce the same results, so this speed-up is not like for like.**
+{% endif %}
+The full campaign, with controls, the Amdahl bound, equality checks and costs,
+is in [docs/COOL_EVIDENCE.md](docs/COOL_EVIDENCE.md).
+{% elif smoke %}
+**COOL benchmark: no evidence yet.** The only benchmark file is a local smoke
+run, which is not evidence, so this submission makes no COOL speed-up or cost
+claim. See [docs/COOL_EVIDENCE.md](docs/COOL_EVIDENCE.md).
 {% else %}
-**COOL benchmark: campaign pending.** The three-arm COOL campaign (x86 with
-PyPI OpenCV, Graviton with PyPI OpenCV, Graviton with COOL) has not run yet, so
-this submission makes no COOL speed-up or cost claim. The method and the
+**COOL benchmark: campaign pending.** The COOL campaign (x86 with PyPI
+OpenCV, Graviton with PyPI OpenCV, Graviton with COOL) has not run yet, so this
+submission makes no COOL speed-up or cost claim. The method and the
 reproduction steps are in [docs/COOL_EVIDENCE.md](docs/COOL_EVIDENCE.md), which
 is regenerated from the benchmark results file once it exists.
 {% endif %}

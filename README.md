@@ -28,9 +28,9 @@ a web app on AWS with a Graviton worker built from the COOL 3.1 AMI.
 
 The sealed gate did not pass.
 v2 single-shot top-1 is below the v1 baseline.
-These results come from synthetic images on a development machine; the full
-evaluation, the failed rules and the limitations are in
-[SUBMISSION.md](SUBMISSION.md).
+These results come from synthetic images on a development machine running
+OpenCV 4.12.0<!--src:results/sealed/v2_single.json#@env.opencv-->; the full evaluation, the failed rules and
+the limitations are in [SUBMISSION.md](SUBMISSION.md).
 
 ## Quickstart
 

@@ -10,51 +10,56 @@ Until then, no speed-up or cost claim for COOL appears anywhere in the
 submission. The accuracy results in [SUBMISSION.md](../SUBMISSION.md) were
 measured on a development machine, not on the COOL worker.
 
-## What the campaign will measure
+## What the campaign measures
 
-- **Three arms on identical input bytes**: `x86-pip` (c7i.4xlarge, OpenCV from
-  PyPI), `graviton-pip` (c8g.4xlarge, OpenCV from PyPI) and `graviton-cool`
-  (c8g.4xlarge, COOL 3.1 AMI, OpenCV from `/opt/cool`). An optional
-  `graviton-cool-large` arm measures the production worker configuration.
-- **Per-operation microbenchmarks** of every OpenCV call in S0–S9 at the
-  production dtype, size and kernel, grouped into KleidiCV-listed operations,
-  control operations (OpenCV calls without KleidiCV kernels) and a NumPy
-  negative control that COOL cannot touch.
+- **Four arms on identical committed DEV inputs**: `x86-pip` (c7i.4xlarge,
+  OpenCV from PyPI), `arm-pip` (c8g.4xlarge, OpenCV from PyPI), `arm-cool`
+  (c8g.4xlarge, COOL AMI, OpenCV from `/opt/cool`) and `arm-cool-large`
+  (c8g.large, COOL AMI, the production worker size, used for cost).
+- **A call census** of the real v2 engine: which cv2 calls run per localisation
+  and what share of the time goes to KleidiCV-listed operations, control
+  operations (OpenCV calls without KleidiCV kernels) and code outside cv2.
+- **Per-call microbenchmarks** that replay the arguments the engine actually
+  passes, grouped into KleidiCV-listed, control and a NumPy negative control
+  that COOL cannot touch.
 - **Per-stage timings** from `LocalizeResult.timings`, **end-to-end latency**
-  (median and p95) and **throughput** with a process pool.
-- **Result equality** between arms: offsets within a pixel tolerance and score
-  maps compared by maximum difference and hash.
-- **Cost per thousand localizations** = (EC2 hourly price + COOL hourly price)
-  / measured jobs per hour, times one thousand, with prices and their sources
-  from `bench/cool/prices.json`.
+  and **throughput** with a process pool, and **agent episodes per hour**.
+- **Result equality** between arms: offsets within a pixel tolerance, top-1
+  agreement, agent outcomes and score maps.
+- **Cost per thousand localizations and per thousand agent episodes** =
+  (EC2 hourly price + COOL hourly price) / measured throughput per hour, times
+  one thousand, with prices and their sources from `bench/cool/prices.json`.
 
 ## How results will be reported
 
 Warm-up runs come first, then timed runs; medians carry ninety-five percent
 percentile-bootstrap confidence intervals, at one thread and at all vCPUs. A
-**speed-up** is the baseline median divided by the candidate median. When the
-interval contains parity the page says **no measurable difference**, whatever
-the point estimate; a gain on a control operation or on the NumPy control is
-treated as a warning about the environment, not as a COOL result. Every verdict
-is computed from the interval in the JSON, never written in the template.
+**speed-up** is the baseline median divided by the candidate median. **When the
+interval includes parity the page says "no measurable difference"**, whatever
+the point estimate, and too few samples give no verdict at all. A gain on a
+control operation or on the NumPy control is treated as a warning about the
+environment, not as a COOL result. The census share of KleidiCV-listed time
+gives an Amdahl upper bound on what COOL can do for this pipeline, printed next
+to the measured stage speed-up. Smoke runs (`--quick` or off EC2) are marked
+`local_smoke` and are refused as evidence.
 
 ## How to reproduce
 
-Deploy the ephemeral bench stack (see `infra/README.md`); each instance runs
-one arm, uploads its outputs to S3 and terminates itself:
+Deploy the ephemeral bench stack (see `infra/README.md`); each instance runs one
+arm, uploads its outputs to S3 and terminates itself:
 
 ```bash
-cd infra && npx --yes aws-cdk@2 deploy DriftSense-Bench -c bench=true   -c bench_run_id=<run_id> -c cool_ami_id=<COOL 3.1 AMI in ap-south-1>
-# on each instance (done by user-data):
-bash bench/cool/run_all.sh <arm_label> s3://<data bucket>/bench/<run_id>/<arm_label>/
+BENCH_ARM=arm-cool BENCH_RUN_ID=<run_id> BENCH_S3_URI=s3://<data bucket>/bench \
+  bash bench/cool/run_all.sh          # done by user-data on each instance
 ```
 
 Then download the arm directories and build the report and this page:
 
 ```bash
-python -m bench.cool.report --arm out/x86-pip --arm out/graviton-pip   --arm out/graviton-cool --price-c7i <usd_per_hour> --out results/bench/
+python -m bench.cool.report --run-dir out/<run_id> --out results/bench/
 python scripts/render_docs.py && python scripts/check_claims.py
 ```
 
-A local plumbing check (no timings worth reporting) runs with
-`python -m bench.cool.microbench --quick` and `python -m bench.cool.stagebench --quick`.
+A local plumbing check (no timings worth reporting) is described in
+`bench/README.md`; its output is a `local_smoke` file and never goes to
+`results/bench/`.

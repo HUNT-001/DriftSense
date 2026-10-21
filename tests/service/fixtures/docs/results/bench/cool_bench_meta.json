@@ -1,24 +1,533 @@
 {
- "note": "TEST FIXTURE sidecar (trimmed); not a result",
- "env_from_arm": "graviton-cool",
- "arms": {
-  "x86-pip": {
-   "cool": false,
-   "cv2_file": null,
-   "git_sha": "678831e15465fde470eef0e53064c5fdd8a6de76",
-   "instance_type": null
+  "arms": {
+    "arm-cool": {
+      "cool": true,
+      "cv2_file": "/opt/cool/venvs/python_3.12/lib/cv2/__init__.py",
+      "git_sha": "abc123",
+      "instance_type": "c8g.4xlarge",
+      "path": "out/run/arm-cool",
+      "quick": false
+    },
+    "arm-cool-large": {
+      "cool": true,
+      "cv2_file": "/opt/cool/venvs/python_3.12/lib/cv2/__init__.py",
+      "git_sha": "abc123",
+      "instance_type": "c8g.large",
+      "path": "out/run/arm-cool-large",
+      "quick": false
+    },
+    "arm-pip": {
+      "cool": false,
+      "cv2_file": "/venv/cv2/__init__.py",
+      "git_sha": "abc123",
+      "instance_type": "c8g.4xlarge",
+      "path": "out/run/arm-pip",
+      "quick": false
+    },
+    "x86-pip": {
+      "cool": false,
+      "cv2_file": "/venv/cv2/__init__.py",
+      "git_sha": "abc123",
+      "instance_type": "c7i.4xlarge",
+      "path": "out/run/x86-pip",
+      "quick": false
+    }
   },
-  "graviton-pip": {
-   "cool": false,
-   "cv2_file": null,
-   "git_sha": "678831e15465fde470eef0e53064c5fdd8a6de76",
-   "instance_type": null
+  "charts": [],
+  "comparisons": {
+    "arm-cool_vs_arm-pip": {
+      "amdahl": {
+        "auto": {
+          "control_share": 0.25,
+          "kleidicv_share": 0.25,
+          "predicted": 1.1428570616795164,
+          "upper_bound_if_listed_ops_free": 1.3333333333333333
+        }
+      },
+      "description": "COOL effect on the same Graviton4 instance type (c8g.4xlarge)",
+      "geomeans": {
+        "control.t1": {
+          "ci_high": 1.0212540650490312,
+          "ci_low": 0.979895006921775,
+          "n_ops": 1,
+          "speedup": 1.0,
+          "verdict": "no measurable difference"
+        },
+        "kleidicv.t1": {
+          "ci_high": 2.023491073176055,
+          "ci_low": 1.978255193269681,
+          "n_ops": 2,
+          "speedup": 1.9999990055745007,
+          "verdict": "candidate faster"
+        },
+        "numpy.t1": {
+          "ci_high": 1.0149691888008041,
+          "ci_low": 0.9845999063667157,
+          "n_ops": 1,
+          "speedup": 1.0,
+          "verdict": "no measurable difference"
+        }
+      },
+      "rows": [
+        {
+          "base_ms": 397.963084,
+          "cand_ms": 397.963084,
+          "ci_high": 1.0101059017181242,
+          "ci_low": 0.9898940033474698,
+          "group": "e2e",
+          "key": "e2e.auto.latency.tN",
+          "metric": "speedup.arm-cool_vs_arm-pip.e2e.auto.latency.tN",
+          "speedup": 1.0,
+          "verdict": "no measurable difference"
+        },
+        {
+          "base_ms": 1.003186,
+          "cand_ms": 0.501593,
+          "ci_high": 2.031360553426285,
+          "ci_low": 1.9678599759601247,
+          "group": "kleidicv",
+          "key": "op.GaussianBlur.s3_localnorm_f32.t1",
+          "metric": "speedup.arm-cool_vs_arm-pip.kleidicv.GaussianBlur.s3_localnorm_f32.t1",
+          "speedup": 2.0,
+          "verdict": "candidate faster"
+        },
+        {
+          "base_ms": 4.9986715,
+          "cand_ms": 4.9986715,
+          "ci_high": 1.0212540650490312,
+          "ci_low": 0.979895006921775,
+          "group": "control",
+          "key": "op.matchTemplate.s4_ccoeff_normed_f32.t1",
+          "metric": "speedup.arm-cool_vs_arm-pip.control.matchTemplate.s4_ccoeff_normed_f32.t1",
+          "speedup": 1.0,
+          "verdict": "no measurable difference"
+        },
+        {
+          "base_ms": 1.9920215,
+          "cand_ms": 1.9920215,
+          "ci_high": 1.0149691888008041,
+          "ci_low": 0.9845999063667157,
+          "group": "numpy",
+          "key": "op.numpy.s6_v1_fingerprint_rerank.t1",
+          "metric": "speedup.arm-cool_vs_arm-pip.numpy.numpy.s6_v1_fingerprint_rerank.t1",
+          "speedup": 1.0,
+          "verdict": "no measurable difference"
+        },
+        {
+          "base_ms": 0.5028025,
+          "cand_ms": 0.2514015,
+          "ci_high": 2.030544598645551,
+          "ci_low": 1.9699087386419072,
+          "group": "kleidicv",
+          "key": "op.sepFilter2D.s3_along_f32.t1",
+          "metric": "speedup.arm-cool_vs_arm-pip.kleidicv.sepFilter2D.s3_along_f32.t1",
+          "speedup": 1.9999980111494962,
+          "verdict": "candidate faster"
+        },
+        {
+          "base_ms": 397.97963300000004,
+          "cand_ms": 378.08065150000004,
+          "ci_high": 1.0656859577844757,
+          "ci_low": 1.0403366315097258,
+          "group": "stage",
+          "key": "stage.auto.total.t1",
+          "metric": "speedup.arm-cool_vs_arm-pip.stage.auto.total.t1",
+          "speedup": 1.0526315785297466,
+          "verdict": "candidate faster"
+        },
+        {
+          "base_ms": null,
+          "base_rate": 600.6,
+          "cand_ms": null,
+          "cand_rate": 600.6,
+          "ci_high": 1.002,
+          "ci_low": 0.998003992015968,
+          "group": "throughput",
+          "key": "agent.throughput",
+          "metric": "speedup.arm-cool_vs_arm-pip.agent.throughput",
+          "speedup": 1.0,
+          "verdict": "no measurable difference"
+        },
+        {
+          "base_ms": null,
+          "base_rate": 36036.0,
+          "cand_ms": null,
+          "cand_rate": 72072.0,
+          "ci_high": 2.004,
+          "ci_low": 1.996007984031936,
+          "group": "throughput",
+          "key": "e2e.auto.throughput",
+          "metric": "speedup.arm-cool_vs_arm-pip.e2e.auto.throughput",
+          "speedup": 2.0,
+          "verdict": "candidate faster"
+        }
+      ]
+    },
+    "arm-cool_vs_x86-pip": {
+      "amdahl": {
+        "auto": {
+          "control_share": 0.25,
+          "kleidicv_share": 0.25,
+          "predicted": 1.1428570616795164,
+          "upper_bound_if_listed_ops_free": 1.3333333333333333
+        }
+      },
+      "description": "COOL on Graviton4 vs pip on x86 (combined)",
+      "geomeans": {
+        "control.t1": {
+          "ci_high": 1.0212540650490312,
+          "ci_low": 0.979895006921775,
+          "n_ops": 1,
+          "speedup": 1.0,
+          "verdict": "no measurable difference"
+        },
+        "kleidicv.t1": {
+          "ci_high": 2.023491073176055,
+          "ci_low": 1.978255193269681,
+          "n_ops": 2,
+          "speedup": 1.9999990055745007,
+          "verdict": "candidate faster"
+        },
+        "numpy.t1": {
+          "ci_high": 1.0149691888008041,
+          "ci_low": 0.9845999063667157,
+          "n_ops": 1,
+          "speedup": 1.0,
+          "verdict": "no measurable difference"
+        }
+      },
+      "rows": [
+        {
+          "base_ms": 397.963084,
+          "cand_ms": 397.963084,
+          "ci_high": 1.0101059017181242,
+          "ci_low": 0.9898940033474698,
+          "group": "e2e",
+          "key": "e2e.auto.latency.tN",
+          "metric": "speedup.arm-cool_vs_x86-pip.e2e.auto.latency.tN",
+          "speedup": 1.0,
+          "verdict": "no measurable difference"
+        },
+        {
+          "base_ms": 1.003186,
+          "cand_ms": 0.501593,
+          "ci_high": 2.031360553426285,
+          "ci_low": 1.9678599759601247,
+          "group": "kleidicv",
+          "key": "op.GaussianBlur.s3_localnorm_f32.t1",
+          "metric": "speedup.arm-cool_vs_x86-pip.kleidicv.GaussianBlur.s3_localnorm_f32.t1",
+          "speedup": 2.0,
+          "verdict": "candidate faster"
+        },
+        {
+          "base_ms": 4.9986715,
+          "cand_ms": 4.9986715,
+          "ci_high": 1.0212540650490312,
+          "ci_low": 0.979895006921775,
+          "group": "control",
+          "key": "op.matchTemplate.s4_ccoeff_normed_f32.t1",
+          "metric": "speedup.arm-cool_vs_x86-pip.control.matchTemplate.s4_ccoeff_normed_f32.t1",
+          "speedup": 1.0,
+          "verdict": "no measurable difference"
+        },
+        {
+          "base_ms": 1.9920215,
+          "cand_ms": 1.9920215,
+          "ci_high": 1.0149691888008041,
+          "ci_low": 0.9845999063667157,
+          "group": "numpy",
+          "key": "op.numpy.s6_v1_fingerprint_rerank.t1",
+          "metric": "speedup.arm-cool_vs_x86-pip.numpy.numpy.s6_v1_fingerprint_rerank.t1",
+          "speedup": 1.0,
+          "verdict": "no measurable difference"
+        },
+        {
+          "base_ms": 0.5028025,
+          "cand_ms": 0.2514015,
+          "ci_high": 2.030544598645551,
+          "ci_low": 1.9699087386419072,
+          "group": "kleidicv",
+          "key": "op.sepFilter2D.s3_along_f32.t1",
+          "metric": "speedup.arm-cool_vs_x86-pip.kleidicv.sepFilter2D.s3_along_f32.t1",
+          "speedup": 1.9999980111494962,
+          "verdict": "candidate faster"
+        },
+        {
+          "base_ms": 397.97963300000004,
+          "cand_ms": 378.08065150000004,
+          "ci_high": 1.0656859577844757,
+          "ci_low": 1.0403366315097258,
+          "group": "stage",
+          "key": "stage.auto.total.t1",
+          "metric": "speedup.arm-cool_vs_x86-pip.stage.auto.total.t1",
+          "speedup": 1.0526315785297466,
+          "verdict": "candidate faster"
+        },
+        {
+          "base_ms": null,
+          "base_rate": 600.6,
+          "cand_ms": null,
+          "cand_rate": 600.6,
+          "ci_high": 1.002,
+          "ci_low": 0.998003992015968,
+          "group": "throughput",
+          "key": "agent.throughput",
+          "metric": "speedup.arm-cool_vs_x86-pip.agent.throughput",
+          "speedup": 1.0,
+          "verdict": "no measurable difference"
+        },
+        {
+          "base_ms": null,
+          "base_rate": 30030.0,
+          "cand_ms": null,
+          "cand_rate": 72072.0,
+          "ci_high": 2.4048,
+          "ci_low": 2.395209580838323,
+          "group": "throughput",
+          "key": "e2e.auto.throughput",
+          "metric": "speedup.arm-cool_vs_x86-pip.e2e.auto.throughput",
+          "speedup": 2.4,
+          "verdict": "candidate faster"
+        }
+      ]
+    },
+    "arm-pip_vs_x86-pip": {
+      "amdahl": {
+        "auto": {
+          "control_share": 0.25,
+          "kleidicv_share": 0.25,
+          "predicted": 1.0,
+          "upper_bound_if_listed_ops_free": 1.3333333333333333
+        }
+      },
+      "description": "Graviton4 vs x86 with the same pip OpenCV",
+      "geomeans": {
+        "control.t1": {
+          "ci_high": 1.0212540650490312,
+          "ci_low": 0.979895006921775,
+          "n_ops": 1,
+          "speedup": 1.0,
+          "verdict": "no measurable difference"
+        },
+        "kleidicv.t1": {
+          "ci_high": 1.0117460084412484,
+          "ci_low": 0.9891290601678139,
+          "n_ops": 2,
+          "speedup": 1.0,
+          "verdict": "no measurable difference"
+        },
+        "numpy.t1": {
+          "ci_high": 1.0149691888008041,
+          "ci_low": 0.9845999063667157,
+          "n_ops": 1,
+          "speedup": 1.0,
+          "verdict": "no measurable difference"
+        }
+      },
+      "rows": [
+        {
+          "base_ms": 397.963084,
+          "cand_ms": 397.963084,
+          "ci_high": 1.0101059017181242,
+          "ci_low": 0.9898940033474698,
+          "group": "e2e",
+          "key": "e2e.auto.latency.tN",
+          "metric": "speedup.arm-pip_vs_x86-pip.e2e.auto.latency.tN",
+          "speedup": 1.0,
+          "verdict": "no measurable difference"
+        },
+        {
+          "base_ms": 1.003186,
+          "cand_ms": 1.003186,
+          "ci_high": 1.0156802767131425,
+          "ci_low": 0.9839295342474104,
+          "group": "kleidicv",
+          "key": "op.GaussianBlur.s3_localnorm_f32.t1",
+          "metric": "speedup.arm-pip_vs_x86-pip.kleidicv.GaussianBlur.s3_localnorm_f32.t1",
+          "speedup": 1.0,
+          "verdict": "no measurable difference"
+        },
+        {
+          "base_ms": 4.9986715,
+          "cand_ms": 4.9986715,
+          "ci_high": 1.0212540650490312,
+          "ci_low": 0.979895006921775,
+          "group": "control",
+          "key": "op.matchTemplate.s4_ccoeff_normed_f32.t1",
+          "metric": "speedup.arm-pip_vs_x86-pip.control.matchTemplate.s4_ccoeff_normed_f32.t1",
+          "speedup": 1.0,
+          "verdict": "no measurable difference"
+        },
+        {
+          "base_ms": 1.9920215,
+          "cand_ms": 1.9920215,
+          "ci_high": 1.0149691888008041,
+          "ci_low": 0.9845999063667157,
+          "group": "numpy",
+          "key": "op.numpy.s6_v1_fingerprint_rerank.t1",
+          "metric": "speedup.arm-pip_vs_x86-pip.numpy.numpy.s6_v1_fingerprint_rerank.t1",
+          "speedup": 1.0,
+          "verdict": "no measurable difference"
+        },
+        {
+          "base_ms": 0.5028025,
+          "cand_ms": 0.5028025,
+          "ci_high": 1.0152742923396274,
+          "ci_low": 0.9849563225684909,
+          "group": "kleidicv",
+          "key": "op.sepFilter2D.s3_along_f32.t1",
+          "metric": "speedup.arm-pip_vs_x86-pip.kleidicv.sepFilter2D.s3_along_f32.t1",
+          "speedup": 1.0,
+          "verdict": "no measurable difference"
+        },
+        {
+          "base_ms": 397.97963300000004,
+          "cand_ms": 397.97963300000004,
+          "ci_high": 1.012401658604512,
+          "ci_low": 0.9883198012977643,
+          "group": "stage",
+          "key": "stage.auto.total.t1",
+          "metric": "speedup.arm-pip_vs_x86-pip.stage.auto.total.t1",
+          "speedup": 1.0,
+          "verdict": "no measurable difference"
+        },
+        {
+          "base_ms": null,
+          "base_rate": 600.6,
+          "cand_ms": null,
+          "cand_rate": 600.6,
+          "ci_high": 1.002,
+          "ci_low": 0.998003992015968,
+          "group": "throughput",
+          "key": "agent.throughput",
+          "metric": "speedup.arm-pip_vs_x86-pip.agent.throughput",
+          "speedup": 1.0,
+          "verdict": "no measurable difference"
+        },
+        {
+          "base_ms": null,
+          "base_rate": 30030.0,
+          "cand_ms": null,
+          "cand_rate": 36036.0,
+          "ci_high": 1.2024,
+          "ci_low": 1.1976047904191616,
+          "group": "throughput",
+          "key": "e2e.auto.throughput",
+          "metric": "speedup.arm-pip_vs_x86-pip.e2e.auto.throughput",
+          "speedup": 1.2,
+          "verdict": "candidate faster"
+        }
+      ]
+    }
   },
-  "graviton-cool": {
-   "cool": false,
-   "cv2_file": null,
-   "git_sha": "678831e15465fde470eef0e53064c5fdd8a6de76",
-   "instance_type": null
-  }
- }
+  "costs": {
+    "arm-cool": {
+      "cool": true,
+      "cool_usd_per_hour": 0.04,
+      "ec2_usd_per_hour": 0.4318,
+      "instance_type": "c8g.4xlarge",
+      "per_1000": {
+        "agent": 0.7855477855477855,
+        "e2e.auto": 0.0065462315462315466
+      },
+      "rate_per_hour": {
+        "agent": 600.6,
+        "e2e.auto": 72072.0
+      },
+      "warnings": []
+    },
+    "arm-cool-large": {
+      "cool": true,
+      "cool_usd_per_hour": 0.01,
+      "ec2_usd_per_hour": 0.054,
+      "instance_type": "c8g.large",
+      "per_1000": {
+        "agent": 0.10656010656010656,
+        "e2e.auto": 0.00999000999000999
+      },
+      "rate_per_hour": {
+        "agent": 600.6,
+        "e2e.auto": 6406.4
+      },
+      "warnings": []
+    },
+    "arm-pip": {
+      "cool": false,
+      "cool_usd_per_hour": 0.0,
+      "ec2_usd_per_hour": 0.4318,
+      "instance_type": "c8g.4xlarge",
+      "per_1000": {
+        "agent": 0.7189477189477189,
+        "e2e.auto": 0.011982461982461983
+      },
+      "rate_per_hour": {
+        "agent": 600.6,
+        "e2e.auto": 36036.0
+      },
+      "warnings": []
+    },
+    "x86-pip": {
+      "cool": false,
+      "cool_usd_per_hour": 0.0,
+      "ec2_usd_per_hour": 0.714,
+      "instance_type": "c7i.4xlarge",
+      "per_1000": {
+        "agent": 1.1888111888111887,
+        "e2e.auto": 0.023776223776223775
+      },
+      "rate_per_hour": {
+        "agent": 600.6,
+        "e2e.auto": 30030.0
+      },
+      "warnings": []
+    }
+  },
+  "env_from_arm": "arm-cool",
+  "equality": {
+    "arm-cool_vs_arm-pip": {
+      "gated": true,
+      "offset": {
+        "max_abs_diff_px": 0.0,
+        "missing": [],
+        "n": 2,
+        "n_exceeding": 0,
+        "pass": true,
+        "tol_px": 0.001,
+        "top1_agreement": 1.0
+      },
+      "pass": true,
+      "scoremaps": {}
+    },
+    "arm-cool_vs_x86-pip": {
+      "gated": false,
+      "offset": {
+        "max_abs_diff_px": 0.0,
+        "missing": [],
+        "n": 2,
+        "n_exceeding": 0,
+        "pass": true,
+        "tol_px": 0.001,
+        "top1_agreement": 1.0
+      },
+      "pass": true,
+      "scoremaps": {}
+    },
+    "arm-pip_vs_x86-pip": {
+      "gated": false,
+      "offset": {
+        "max_abs_diff_px": 0.0,
+        "missing": [],
+        "n": 2,
+        "n_exceeding": 0,
+        "pass": true,
+        "tol_px": 0.001,
+        "top1_agreement": 1.0
+      },
+      "pass": true,
+      "scoremaps": {}
+    }
+  },
+  "prices_as_of": "2026-10-21",
+  "smoke": false,
+  "warnings": []
 }
