@@ -36,13 +36,16 @@ check: lint test contracts-check claims
 #   (gate-g2, gate-g5, eval-* land here in phases A4/A8)
 
 # ---- B targets ----
-.PHONY: docs docs-check e2e-local infra-setup synth deploy bench-local ui-setup ui-test ui-build
+.PHONY: docs docs-check dev-server e2e-local infra-setup synth deploy bench-local ui-setup ui-test ui-build
 
 docs:
 	python scripts/render_docs.py
 
 docs-check:
 	python scripts/render_docs.py --check
+
+dev-server: ui-build
+	python -m service.dev_server --ui ui/dist
 
 e2e-local:
 	python -m service.e2e_local --engine fake
