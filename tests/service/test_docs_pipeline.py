@@ -560,6 +560,7 @@ def test_all_b_docs_render_from_real_results_and_pass_claims(tmp_path, capsys):
         "docs/ARCHITECTURE.md",
         "docs/COOL_EVIDENCE.md",
         "docs/RESPONSIBLE_USE.md",
+        "docs/VIDEO_SCRIPT.md",
     ):
         text = (ws / p).read_text(encoding="utf-8")
         assert text.startswith(GENERATED_PREFIX), p
@@ -574,7 +575,7 @@ def test_all_b_docs_render_from_real_results_and_pass_claims(tmp_path, capsys):
     assert "campaign pending" in cool and "<!--src:" not in cool
     rc, rep = claims(ws, capsys, "SUBMISSION.md")
     assert rc == 0 and codes(rep) == set(), rep["findings"]
-    assert rep["summary"]["generated_docs"] == 5
+    assert rep["summary"]["generated_docs"] == 6
     # once generated, root docs are re-rendered without the flag; --check is clean
     assert render(ws, "--check") == 0
 
