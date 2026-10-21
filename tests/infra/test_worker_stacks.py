@@ -425,8 +425,8 @@ def test_bench_large_arm_optional(make_app):
         "c8g.large",
     ]
     uds = [_flatten_user_data(i["Properties"]["UserData"]) for i in instances.values()]
-    (large,) = [u for u in uds if 'ARM_LABEL="graviton-cool-large"' in u]
-    assert "/bench/r2/graviton-cool-large/" in large and "/opt/cool/venvs/python_3.12" in large
+    (large,) = [u for u in uds if 'ARM_LABEL="arm-cool-large"' in u]
+    assert "/bench/r2/arm-cool-large/" in large and "/opt/cool/venvs/python_3.12" in large
 
 
 def test_bench_instances(bench_app):
@@ -451,15 +451,18 @@ def test_bench_user_data(bench_app):
         for i in bench.find_resources("AWS::EC2::Instance").values()
     }
     texts = list(uds)
-    for label in ("x86-pip", "graviton-pip", "graviton-cool"):
+    for label in ("x86-pip", "arm-pip", "arm-cool"):
         (ud,) = [t for t in texts if f'ARM_LABEL="{label}"' in t]
-        assert 'bash bench/cool/run_all.sh "$ARM_LABEL" "$DEST"' in ud
+        assert "bash bench/cool/run_all.sh" in ud
+        # bench/cool/run_all.sh env contract (bench/README.md)
+        assert 'export BENCH_ARM="$ARM_LABEL" BENCH_RUN_ID="test-run"' in ud
+        assert "BENCH_SKIP_VENV=1" in ud and "/bench" in ud and "BENCH_S3_URI=" in ud
         assert f"/bench/test-run/{label}/" in ud
         assert "export PYTHON=/opt/driftsense/venv/bin/python" in ud
         assert f"export DRIFTSENSE_ENGINE=v2 ENGINE_GIT_SHA={V2_FREEZE_SHA}" in ud
         assert ud.index("run_all.sh") < ud.rindex("shutdown -h now")
         assert "shutdown -h now" in ud and "shutdown -h +360" in ud
-        if label == "graviton-cool":
+        if label == "arm-cool":
             assert "/opt/cool/venvs/python_3.12" in ud and "grep -i opencv" in ud
             assert "requirements-cool.lock" in ud
             _assert_never_pip_installs_opencv(ud)

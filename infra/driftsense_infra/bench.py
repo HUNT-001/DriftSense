@@ -5,9 +5,9 @@ Self-terminating instances run, from the app bundle root with the arm's venv act
 ``run_all.sh`` uploads its own outputs to that URI; user-data adds the cloud-init log):
 
 * ``x86-pip``             c7i.4xlarge, Ubuntu 24.04 amd64, OpenCV from PyPI (requirements.lock)
-* ``graviton-pip``        c8g.4xlarge, Ubuntu 24.04 arm64, OpenCV from PyPI (requirements.lock)
-* ``graviton-cool``       c8g.4xlarge, COOL 3.1 AMI, OpenCV from /opt/cool (requirements-cool.lock, never pip opencv)
-* ``graviton-cool-large`` c8g.large COOL (production size, cost claim), only with ``-c bench_large=true``
+* ``arm-pip``        c8g.4xlarge, Ubuntu 24.04 arm64, OpenCV from PyPI (requirements.lock)
+* ``arm-cool``       c8g.4xlarge, COOL 3.1 AMI, OpenCV from /opt/cool (requirements-cool.lock, never pip opencv)
+* ``arm-cool-large`` c8g.large COOL (production size, cost claim), only with ``-c bench_large=true``
 """
 
 from __future__ import annotations
@@ -38,10 +38,10 @@ class BenchArm:
 
 ARMS: tuple[BenchArm, ...] = (
     BenchArm("x86-pip", "c7i.4xlarge", cool=False, ubuntu_arch="amd64"),
-    BenchArm("graviton-pip", "c8g.4xlarge", cool=False, ubuntu_arch="arm64"),
-    BenchArm("graviton-cool", "c8g.4xlarge", cool=True),
+    BenchArm("arm-pip", "c8g.4xlarge", cool=False, ubuntu_arch="arm64"),
+    BenchArm("arm-cool", "c8g.4xlarge", cool=True),
 )
-LARGE_ARM = BenchArm("graviton-cool-large", "c8g.large", cool=True)
+LARGE_ARM = BenchArm("arm-cool-large", "c8g.large", cool=True)
 BENCH_OUT_ROOT = "/opt/driftsense/bench-out"
 
 
@@ -113,7 +113,9 @@ class BenchStack(Stack):
                 require_imdsv2=True,
                 instance_initiated_shutdown_behavior=ec2.InstanceInitiatedShutdownBehavior.TERMINATE,
                 detailed_monitoring=False,
-                user_data=self._user_data(arm, dest, settings),
+                user_data=self._user_data(
+                    arm, dest, settings, run_id=run_id, s3_root=f"s3://{data_bucket.bucket_name}/bench"
+                ),
                 user_data_causes_replacement=True,
                 block_devices=[
                     ec2.BlockDevice(
@@ -189,7 +191,9 @@ class BenchStack(Stack):
             apply_to_children=True,
         )
 
-    def _user_data(self, arm: BenchArm, dest: str, settings: Settings) -> ec2.UserData:
+    def _user_data(
+        self, arm: BenchArm, dest: str, settings: Settings, *, run_id: str, s3_root: str
+    ) -> ec2.UserData:
         ud = ec2.UserData.for_linux(shebang="#!/bin/bash")
         ud.add_commands(
             userdata.PREAMBLE,
@@ -213,9 +217,14 @@ class BenchStack(Stack):
             f'export VIRTUAL_ENV={userdata.VENV_DIR} PATH="{userdata.VENV_DIR}/bin:$PATH"',
             f"export PYTHON={userdata.VENV_PY} PYTHONPATH={userdata.APP_DIR}",
             f"export DRIFTSENSE_ENGINE={settings.engine} ENGINE_GIT_SHA={settings.engine_git_sha}",
-            f"export BENCH_OUT_ROOT={BENCH_OUT_ROOT} AWS_DEFAULT_REGION={self.region}",
-            # run_all.sh uploads <out>/<arm>/ and <arm>.tar.gz to $DEST itself; a failed step still uploads.
-            'bash bench/cool/run_all.sh "$ARM_LABEL" "$DEST"',
+            f"export AWS_DEFAULT_REGION={self.region}",
+            # bench/cool/run_all.sh env contract (bench/README.md). The venv above is already built and
+            # opencv-guarded, so run_all.sh reuses $PYTHON (its guards still run). It uploads
+            # <out>/<arm>/ and <arm>.tar.gz to $BENCH_S3_URI/$BENCH_RUN_ID/$BENCH_ARM/ = $DEST itself;
+            # a failed step still uploads.
+            f'export BENCH_ARM="$ARM_LABEL" BENCH_RUN_ID="{run_id}" BENCH_OUT_DIR={BENCH_OUT_ROOT}',
+            f'export BENCH_S3_URI="{s3_root}" BENCH_SKIP_VENV=1',
+            "bash bench/cool/run_all.sh",
             "shutdown -h now",
         )
         return ud

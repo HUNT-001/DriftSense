@@ -108,7 +108,7 @@ boto3 comes from the runtime). Synth fails if `cv2`, `numpy`, `boto3` or `botoco
 | `bedrock_inference_profile` | — | e.g. `apac.amazon.nova-lite-v1:0`: grants the profile ARN + that one model in any region, conditioned on the profile. |
 | `root_device_name` | `/dev/sda1` | Root device of the AMIs (Ubuntu). |
 | `bench` / `bench_run_id` / `bench_max_minutes` | `false` / `adhoc` / `360` | Bench stack; S3 prefix `bench/<run_id>/`; hard self-terminate cap. |
-| `bench_large` | `false` | Add the `graviton-cool-large` c8g.large COOL arm (production cost claim). |
+| `bench_large` | `false` | Add the `arm-cool-large` c8g.large COOL arm (production cost claim). |
 | `bench_az` | — | Pin bench instances to one AZ (if c8g/c7i capacity is missing in the first). |
 | `github_repo` / `github_oidc_provider_arn` | `HUNT-001/DriftSense` / — | OIDC trust; reuse an existing provider. |
 
@@ -260,9 +260,9 @@ npx cdk deploy DriftSense-Bench -c bench=true -c bench_run_id=$RUN -c bench_larg
 aws ec2 describe-instances --filters "Name=tag:aws:cloudformation:stack-name,Values=DriftSense-Bench" \
   --query 'Reservations[].Instances[].[Tags[?Key==`aws:cloudformation:logical-id`]|[0].Value,State.Name]' --output table
 mkdir -p ../out && aws s3 sync "s3://$DATA/bench/$RUN/" "../out/bench-$RUN/"
-for a in x86-pip graviton-pip graviton-cool graviton-cool-large; do ls "../out/bench-$RUN/$a"; done
-cd .. && python -m bench.cool.report --arm out/bench-$RUN/x86-pip --arm out/bench-$RUN/graviton-pip \
-  --arm out/bench-$RUN/graviton-cool --arm out/bench-$RUN/graviton-cool-large \
+for a in x86-pip arm-pip arm-cool arm-cool-large; do ls "../out/bench-$RUN/$a"; done
+cd .. && python -m bench.cool.report --arm out/bench-$RUN/x86-pip --arm out/bench-$RUN/arm-pip \
+  --arm out/bench-$RUN/arm-cool --arm out/bench-$RUN/arm-cool-large \
   --price-c7i <usd_per_hour_ap-south-1> --out results/bench/ && cd infra
 npx cdk destroy DriftSense-Bench -c bench=true -c bench_run_id=$RUN -c cool_ami_id=$COOL_AMI --force
 ```
