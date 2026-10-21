@@ -158,12 +158,12 @@ gets there by *escalating*, not by guessing.
 
 ## 6. Sealed evaluation
 
-The sealed evaluation was **pre-registered and hash-locked** before any sealed pair was
-touched: protocol SHA
-`{{ sealed/disclosures.json | protocol_sha256 }}`, engine pinned at
+The sealed evaluation was **pre-registered and hash-locked** before evaluation: protocol
+SHA `{{ sealed/disclosures.json | protocol_sha256 }}`, engine frozen at the pinned SHA
 `{{ sealed/disclosures.json | engine_pin }}`. The grader refuses to run unless the
 running engine's git SHA matches the pin, so no engine parameter could be tuned to the
-sealed data.
+sealed data — the frozen result is unaffected by any incidental access to the set, which
+is disclosed in full in §6.1.
 
 **Result: the sealed gate did not pass.** Of
 **{{ sealed/decisions.json | n_rules | int }}** pre-registered decision rules,
@@ -198,6 +198,10 @@ was in `eval/sealed_run.py`, not in `driftsense/`. The full record is in
   development is disclosed in full
   (*{{ sealed/disclosures.json | disclosures.0.id }}*), as is the tag-vs-pinned-SHA note
   (*{{ sealed/disclosures.json | disclosures.1.id }}*).
+
+The sealed set was also inadvertently tracked in git history from Stage 1 and has since
+been untracked and ignored going forward; because the engine was SHA-frozen and
+grader-enforced, the committed result is unaffected (see `results/sealed/disclosures.json`).
 
 **Limitation line (verbatim from disclosures.json):**
 > {{ sealed/disclosures.json | report_limitation_line }}
