@@ -267,12 +267,12 @@ def test_slow_human_approval_is_not_a_tool_timeout():
     from driftsense.contracts import ApprovalDecision
 
     def slow_operator(req):
-        time.sleep(0.6)
+        time.sleep(3.5)
         return ApprovalDecision(chosen_rank=1, approver="op")
 
     sem = VirtualSEM(seed=0, **SMALL)
     r = run_episode(
-        sem, tau=5.0, run_id="t-slow", max_steps=3, tool_timeout_s=0.5, approval_cb=slow_operator, **EP
+        sem, tau=5.0, run_id="t-slow", max_steps=3, tool_timeout_s=3.0, approval_cb=slow_operator, **EP
     )
     assert r.outcome == "escalate"
     assert r.approval is not None and r.approval.chosen_rank == 1
