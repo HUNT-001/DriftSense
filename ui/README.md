@@ -115,3 +115,16 @@ or `failed` with `rejected_by_operator`, `approval_timeout`, `agent_abort`, `bad
 - Meaning never depends on colour alone: icons, text verdicts and a hatched below-τ fill. The palette is Okabe-Ito derived (bluish-green = commit, orange = escalate, purple = replay), scores use viridis swatches, and the engine heatmaps use inferno.
 - Light and dark follow `prefers-color-scheme`. `tests/contrast.test.ts` checks every text token pair for at least 4.5:1, and borders for at least 3:1.
 - The layout works at 375 px with no horizontal page scroll (tables scroll inside their own region). `prefers-reduced-motion` and `forced-colors` are respected.
+
+## Real-browser end-to-end check
+
+Against a live API (deployed, or `python -m service.dev_server --ui ui/dist` from the repo root):
+
+```bash
+npm i --no-save playwright-core@1.55.0
+node scripts/browser-e2e.cjs http://127.0.0.1:8000 ./shots
+```
+
+It runs the escalating agent episode `vsem-dram-17`, approves rank 1 on the approval card and waits for
+`succeeded` (a cold run takes about 20 s, under the 60 s G8 target). It then checks there is no horizontal
+scroll at 375 px and saves four screenshots. It uses the installed Edge/Chrome and downloads nothing.
