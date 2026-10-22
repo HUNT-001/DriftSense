@@ -1,0 +1,32 @@
+{#- requires: accuracy/g2 sealed/finfet bench/cool_bench -#}
+{#- Test fixture: one line per fmt so tests can assert exact output. -#}
+# Formats
+
+- default: {{ m("accuracy/g2", "speedup") }}
+- raw: {{ m("accuracy/g2", "speedup", fmt="raw") }}
+- int: {{ m("accuracy/g2", "speedup", fmt="int") }}
+- f1: {{ m("accuracy/g2", "speedup", fmt="f1") }}
+- f2: {{ m("accuracy/g2", "speedup", fmt="f2") }}
+- f3: {{ m("accuracy/g2", "speedup", fmt="f3") }}
+- pct: {{ m("accuracy/g2", "top1_success", fmt="pct") }}
+- pct-ci: {{ m("accuracy/g2", "top1_success", fmt="pct", ci=true) }}
+- ms: {{ m("accuracy/g2", "e2e_p50", fmt="ms", ci=true) }}
+- ms-from-s: {{ m("accuracy/g2", "latency_s", fmt="ms") }}
+- x-ci: {{ m("accuracy/g2", "speedup", fmt="x", ci=true) }}
+- usd: {{ m("accuracy/g2", "cost_per_1000", fmt="usd") }}
+- count: {{ m("accuracy/g2", "pairs") }}
+- n: {{ n("accuracy/g2", "speedup") }}
+- nolabel: {{ m("accuracy/g2", "speedup", label=false) }}
+- sealed: {{ m("sealed/finfet", "top1_success", fmt="pct", ci=true) }}
+- bench: {{ m("bench/cool_bench", "speedup.arm-cool_vs_arm-pip.kleidicv.geomean.t1", ci=true) }}
+- usd-small: {{ m("bench/cool_bench", "cost.arm-cool.e2e.auto.usd_per_1000_localizations", fmt="usd") }}
+- sha: {{ meta("accuracy/g2", "git_sha") }}
+- created: {{ meta("accuracy/g2", "created_at") }}
+- date: {{ meta("accuracy/g2", "created_at", fmt="date") }}
+- dataset: {{ meta("accuracy/g2", "dataset") }}
+- protocol: {{ meta("sealed/finfet", "protocol_sha256") }}
+- instance: {{ meta("bench/cool_bench", "env.instance_type") }}
+- cool: {{ meta("bench/cool_bench", "env.cool") }}
+
+The sealed FinFET success rate is {{ m("sealed/finfet", "top1_success", fmt="pct") }}.
+On the development split the speed-up was {{ m("accuracy/g2", "speedup") }}.
