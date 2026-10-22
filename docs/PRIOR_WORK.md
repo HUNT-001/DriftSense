@@ -36,8 +36,11 @@ We claim **none** of the above as new. v1's accuracy is the bar, not our result.
 Everything claimed as a contribution is a **delta over v1**, measured on the same sealed
 set and benchmark harness:
 
-1. **Calibrated abstention instead of unconditional commit.** v1 commits on every pair;
-   v2 introduces a calibrated commit threshold τ and a margin→probability map, driving
+1. **Calibrated abstention instead of unconditional commit.** v1 commits on
+   **{{ sealed/v1.json | metrics['commits.n'].value | int }}** of
+   **{{ sealed/v1.json | metrics['top1.pooled'].n | int }}** sealed pairs (not all of
+   them); v2 introduces a calibrated commit threshold τ and a margin→probability map,
+   driving
    the pooled false-confident rate from
    **{{ sealed/v1.json | metrics['false_confident.pooled'].value | pct2 }}%** (v1) to
    **{{ sealed/v2_single.json | metrics['false_confident.pooled'].value | pct }}%** (v2),

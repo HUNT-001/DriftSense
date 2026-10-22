@@ -17,6 +17,7 @@
                    pct2  value*100, 2dp        x1    multiplier, 1dp (e.g. 10.8)
                    ms0   milliseconds, integer  g     grouped integer (65,810,000)
                    nm3   nanometres, 3dp         int   integer
+                   f2    verbatim value, 2dp     f3    verbatim value, 3dp
                    (strings render verbatim; render_docs owns the exact formatting.)
 
   check_claims MUST treat the following as nomenclature, NOT metrics (they carry
@@ -55,31 +56,50 @@ accurate but gives no calibrated notion of *when not to trust itself*: it commit
 pooled false-confident rate of
 **{{ sealed/v1.json | metrics['false_confident.pooled'].value | pct2 }}%**.
 
-v2 is a ground-up re-implementation on the **OpenCV 5** stack whose design target is
-calibrated abstention rather than raw top-1.
+v2 is a ground-up re-implementation targeting the **OpenCV 5** / KleidiCV stack, whose
+design target is calibrated abstention rather than raw top-1. Every accuracy and latency
+number in this report, however, was produced on **OpenCV
+{{ sealed/v2_single.json | env.opencv }}** — the pinned evaluation environment recorded in
+each result file's `env.opencv` — and was **not** measured on OpenCV 5. What links the two
+is a separate cross-version equivalence check
+(`results/bench/cv5_equivalence.json`): over
+**{{ bench/cv5_equivalence.json | metrics['pairs.decision_agreement'].n | int }}** DEV
+pairs the SHA-frozen engine on OpenCV
+**{{ bench/cv5_equivalence.json | env.opencv }}** agrees with the OpenCV
+{{ sealed/v2_single.json | env.opencv }} run on
+**{{ bench/cv5_equivalence.json | metrics['pairs.decision_agreement'].value | pct }}%** of
+commit decisions and
+**{{ bench/cv5_equivalence.json | metrics['pairs.top1_hit_agreement'].value | pct }}%** of
+top-1 hits, and on all
+**{{ bench/cv5_equivalence.json | metrics['episodes.outcome_agreement'].n | int }}** agent
+episodes. So the numbers below are OpenCV-{{ sealed/v2_single.json | env.opencv }}-measured
+and separately shown to carry over to OpenCV 5 unchanged.
 
 ## 3. The v2 pipeline (S0–S9)
 
-v2 is a ten-stage pipeline. Every hot-path operation is restricted to the KleidiCV-
-accelerated OpenCV subset so the same code runs on arm64 COOL workers without a Python
-pixel loop:
+v2 is a ten-stage pipeline. Its filtering, warping and morphology steps use
+KleidiCV-listed OpenCV ops — GaussianBlur, sepFilter2D, Sobel, erode, dilate,
+warpPerspective, resize, pyrDown and cvtColor — so those steps run on arm64 COOL workers
+without a Python pixel loop. Two hot-path operations are **not** KleidiCV-accelerated: the
+`dft` used for lattice detection (S1) and the `matchTemplate` used for scoring (S4). We
+claim **no** COOL speed-up for those two ops.
+
+The timed stages, listing only the OpenCV calls the engine actually makes:
 
 | Stage | Name | Role |
 |------|------|------|
-| S0 | ingest | normalise, denoise (GaussianBlur / medianBlur / cvtColor) |
-| S1 | lattice | detect the periodic lattice and its replicas |
-| S2 | rectify | estimate orientation and warp to a rectified frame (warpPerspective / remap) |
+| S0 | ingest | normalise, denoise (GaussianBlur / cvtColor) |
+| S1 | lattice | detect the periodic lattice and its replicas (dft) |
+| S2 | rectify | estimate orientation and warp to a rectified frame (warpPerspective) |
 | S3 | roughness | per-replica line-edge-roughness residual fingerprint |
-| S4 | score | fuse correlation + roughness into a per-candidate score |
+| S4 | score | fuse correlation (matchTemplate) + roughness into a per-candidate score |
 | S5 | cascade | escalate from the fast path to the full path when the margin is low |
-| S6 | contour | sub-structure contour refinement (DRAM path) |
-| S7 | confidence | margin → calibrated commit probability |
 | S8 | subpixel | sub-pixel offset refinement |
 | S9 | explain | emit ranked candidates, heatmaps and the decision trace |
 
-The KleidiCV-eligible ops used in the hot paths are GaussianBlur, sepFilter2D, Sobel,
-erode, dilate, remap, warpPerspective, resize, pyrDown, medianBlur, cvtColor and
-minMaxIdx. On the DEV speed bench v2 runs at
+Contour refinement (S6) and the margin→probability confidence map (S7) are scaffold and
+calibration steps, not timed hot-path stages, so they are omitted from the table above.
+On the DEV speed bench v2 runs at
 **{{ accuracy/g2.json | metrics['v2_latency_ms'].value | ms0 }} ms/pair**, which is
 **{{ accuracy/g2.json | metrics['speedup_vs_v1_lattice'].value | x1 }}×** faster than
 v1's lattice path
@@ -102,10 +122,10 @@ What v2 buys instead is three things that the baselines do not provide:
    **{{ sealed/v2_single.json | metrics['set_recall.pooled_structured'].value | pct }}%**
    of structured sealed pairs. The right answer is almost always *present*; what is
    hard is discriminating it from its replicas.
-2. **Zero false-confident commits.** v2 commits on
+2. **Abstention on every sealed pair.** At the calibrated threshold v2 committed on
    **{{ sealed/v2_single.json | metrics['commits.n'].value | int }}** of
-   **{{ sealed/v2_single.json | metrics['top1.pooled'].n | int }}** sealed pairs at the
-   calibrated threshold, with a pooled false-confident rate of
+   **{{ sealed/v2_single.json | metrics['top1.pooled'].n | int }}** sealed pairs — that is,
+   it abstained on every one of them — so the pooled false-confident rate is
    **{{ sealed/v2_single.json | metrics['false_confident.pooled'].value | pct }}%**
    (95% CI upper bound
    **{{ sealed/v2_single.json | metrics['false_confident.pooled'].ci_high | pct }}%**).
@@ -113,7 +133,7 @@ What v2 buys instead is three things that the baselines do not provide:
 3. **Calibrated abstention.** The commit threshold τ is fit on a held-out calibration
    split (isotonic margin→probability map, Wilson lower bound); equal-count ECE on the
    sealed set is
-   **{{ sealed/v2_single.json | metrics['ece'].value | pct2 }}**.
+   **{{ sealed/v2_single.json | metrics['ece'].value | f3 }}**.
 
 **Ranked recall@K is not set-recall.** A candidate can be present (counts toward
 set-recall) yet ranked below a replica (misses top-1). The gap between v2's high
@@ -136,8 +156,10 @@ failure — and it is the motivation for the agent in §5.
 ## 5. Active perception: re-imaging under ambiguity
 
 When the margin falls below τ, v2 does not guess — it reports *insufficient evidence*,
-and the active-perception agent acquires another image (a tilt/re-scan) rather than
-committing. Scored over the agent evaluation of
+and the active-perception agent acquires more evidence rather than committing. The
+rule-based policy doubles the dwell time, widens the field of view, adds rectification
+hypotheses, or triggers a contour re-localisation; it never tilts the stage. Scored over
+the agent evaluation of
 **{{ sealed/agent_rules.json | metrics['n_episodes'].value | int }}** episodes on the
 sealed set, the rule-based agent reaches a success rate of
 **{{ sealed/agent_rules.json | metrics['agent_rules.success'].value | pct }}%** — up
@@ -150,7 +172,7 @@ gets there by *escalating*, not by guessing.
 > **{{ sealed/agent_rules.json | metrics['n_episodes'].value | int }}**-episode agent
 > set only; it is **not** a success rate over all sealed pairs. The agent trades dose
 > and wall-time for certainty: mean acquisitions rise to
-> **{{ sealed/agent_rules.json | metrics['agent_rules.mean_steps'].value }}** and mean
+> **{{ sealed/agent_rules.json | metrics['agent_rules.mean_steps'].value | f2 }}** and mean
 > dose to **{{ sealed/agent_rules.json | metrics['agent_rules.mean_dose'].value | g }}**
 > electrons, which **exceeds** the pre-registered per-episode budget of
 > **{{ sealed/agent_rules.json | metrics['dose_budget'].value | g }}** electrons — the
@@ -176,8 +198,10 @@ engine's actual design thesis pass:
 
 The accuracy-oriented rules (D1–D6, D8) do not pass, because v2 is deliberately not a
 better point-estimator; and D12 does not pass because the agent exceeds its dose budget
-(**{{ sealed/decisions.json | rules.D12_agent_budget.detail }}**). We report this
-plainly rather than re-defining the gate around the result.
+(**{{ sealed/decisions.json | rules.D12_agent_budget.detail }}**). The overrun is partly
+an artefact of how the sealed agent episodes were run: no `max_dose` cap was passed to the
+policy, so nothing truncated an episode when it crossed the per-episode budget. We report
+this plainly rather than re-defining the gate around the result.
 
 ### 6.1 Harness-correction disclosure (three runs)
 
@@ -220,6 +244,22 @@ grader-enforced, the committed result is unaffected (see `results/sealed/disclos
 - **Not a safety certification.** These numbers characterise an engine on a synthetic
   benchmark. They are not a claim of fitness for any specific tool, process node, or
   safety-critical deployment.
+
+## 8. Deployment, COOL & reproducibility
+
+The engine is not just a benchmark harness: it runs as a deployable service on arm64 COOL
+workers, and the deployment path is documented separately.
+
+- **Architecture.** The service topology, job API and contract boundary are described in
+  [ARCHITECTURE.md](ARCHITECTURE.md).
+- **COOL evidence.** The arm64 / KleidiCV hot-path evidence — including the OpenCV 4.12 vs
+  5.0 cross-version equivalence check cited in §2 — is collected in
+  [COOL_EVIDENCE.md](COOL_EVIDENCE.md).
+- **Infrastructure.** The CDK stacks, COOL worker ASG and OIDC deploy are documented in
+  [../infra/README.md](../infra/README.md).
+- **Agent integration.** The active-perception agent is exposed through a working
+  MCP-over-stdio server, so the same escalation policy that is scored in §5 can drive an
+  external client over the Model Context Protocol.
 
 ---
 *All figures in this report are rendered from `results/*.json` by the docs pipeline; no
