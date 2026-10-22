@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import multiprocessing
 import os
 import time
 from concurrent.futures import ProcessPoolExecutor
@@ -188,7 +189,10 @@ def main(argv: list[str] | None = None) -> int:
             flush=True,
         )
         with ProcessPoolExecutor(
-            max_workers=workers, initializer=mod._init_worker, initargs=(n_seeds,)
+            max_workers=workers,
+            mp_context=multiprocessing.get_context("spawn"),
+            initializer=mod._init_worker,
+            initargs=(n_seeds,),
         ) as ex:
             list(ex.map(mod._warm, range(workers * 2)))
             for t in range(trials):

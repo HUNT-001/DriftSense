@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import multiprocessing
 import os
 import time
 from concurrent.futures import ProcessPoolExecutor
@@ -92,12 +93,16 @@ def run_latency(localize, mode, budget, engine: str, pairs, warmup: int, repeats
 
 
 def run_throughput(engine: str, mode_value: str, k: int, workers: int, jobs: int, trials: int):
-    # resolve worker functions by their importable module name (not __main__) so spawn-started
-    # children (Windows/macOS, or forced spawn) can unpickle them
+    # spawn on every OS: fork would copy the parent's live cv2 thread pool into the workers and can
+    # deadlock them on Linux. Worker functions are resolved by their importable module name (not
+    # __main__) so spawn-started children can unpickle them
     mod = importlib.import_module("bench.cool.e2e")
     trial_rows, loaded = [], []
     with ProcessPoolExecutor(
-        max_workers=workers, initializer=mod._init_worker, initargs=(engine, mode_value, k)
+        max_workers=workers,
+        mp_context=multiprocessing.get_context("spawn"),
+        initializer=mod._init_worker,
+        initargs=(engine, mode_value, k),
     ) as ex:
         pids = set(ex.map(mod._warm, range(workers * 2)))
         for t in range(trials):
