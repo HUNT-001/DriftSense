@@ -1,0 +1,182 @@
+{
+  "_about": "Real engine outputs re-captured by ui/scripts/capture_samples.py for the committed trace traces/demo_escalate.jsonl (seed 1, family dram). Only localize results whose margin reproduces the committed trace are kept.",
+  "trace": "demo_escalate.jsonl",
+  "seed": 1,
+  "family": "dram",
+  "localize": [
+    {
+      "trace_step": 7,
+      "result": {
+        "contract_version": "1.0.0",
+        "engine": "v2",
+        "engine_version": "v2-p2",
+        "mode": "auto",
+        "lattice_type": "grid",
+        "offset": {
+          "x_px": 68.10436701029539,
+          "y_px": 64.71407124400139,
+          "x_nm": null,
+          "y_nm": null,
+          "pixel_size_nm": null
+        },
+        "candidates": [
+          {
+            "rank": 1,
+            "x_px": 68.0,
+            "y_px": 65.0,
+            "score": 0.6737412214279175,
+            "lattice_score": null,
+            "roughness_score": 0.6206217408180237
+          },
+          {
+            "rank": 2,
+            "x_px": 52.0,
+            "y_px": 99.0,
+            "score": 0.6999666690826416,
+            "lattice_score": null,
+            "roughness_score": 0.2956242561340332
+          },
+          {
+            "rank": 3,
+            "x_px": 2.0,
+            "y_px": 65.0,
+            "score": 0.6166074872016907,
+            "lattice_score": null,
+            "roughness_score": 0.6198021769523621
+          },
+          {
+            "rank": 4,
+            "x_px": 68.0,
+            "y_px": 133.0,
+            "score": 0.577267587184906,
+            "lattice_score": null,
+            "roughness_score": 0.6001261472702026
+          },
+          {
+            "rank": 5,
+            "x_px": 151.0,
+            "y_px": 166.0,
+            "score": 0.5687719434499741,
+            "lattice_score": null,
+            "roughness_score": 0.2968651354312897
+          }
+        ],
+        "margin": {
+          "margin": -0.02622544765472412,
+          "tau": 0.1,
+          "calibrated": false,
+          "p_correct": null,
+          "decision": "escalate"
+        },
+        "timings": [
+          {
+            "stage": "ingest",
+            "ms": 2.758099988568574
+          },
+          {
+            "stage": "lattice",
+            "ms": 41.02569998940453
+          },
+          {
+            "stage": "rectify",
+            "ms": 189.7021000040695
+          },
+          {
+            "stage": "roughness",
+            "ms": 7.288500026334077
+          },
+          {
+            "stage": "score",
+            "ms": 7.326900027692318
+          },
+          {
+            "stage": "cascade",
+            "ms": 74.3642000015825
+          },
+          {
+            "stage": "subpixel",
+            "ms": 0.9456999832764268
+          },
+          {
+            "stage": "explain",
+            "ms": 42.674100026488304
+          }
+        ],
+        "total_ms": 366.23510002391413,
+        "artifacts": [
+          {
+            "kind": "heatmap",
+            "uri": "ncc_heatmap.png",
+            "sha256": "2a2a7c81831d38164b9b46d872cbbf435513671a9a1830c905ab6c0275379bc4"
+          },
+          {
+            "kind": "heatmap",
+            "uri": "roughness_heatmap.png",
+            "sha256": "5970d6d84c97e2a36d82789c218308740f93770d63bf741bbea938606baaeae0"
+          },
+          {
+            "kind": "candidates",
+            "uri": "top5_gallery.png",
+            "sha256": "731ff99557df00a1d93030faf3b560ae5405dcb5343a2c19fbc7a1d747e75bee"
+          },
+          {
+            "kind": "overlay",
+            "uri": "overlay.png",
+            "sha256": "f3414b02e8d6fe59b91a8516d92891ae38c3a4b5dc6139ff31acf312198a45e3"
+          }
+        ],
+        "warnings": [
+          "smooth_len snapped to KleidiCV-supported 31 (fallback path otherwise)",
+          "cascade: escalated to v1 fingerprint re-rank"
+        ]
+      },
+      "artifact_files": {
+        "ncc_heatmap.png": "demo_escalate/step7_ncc_heatmap.webp",
+        "roughness_heatmap.png": "demo_escalate/step7_roughness_heatmap.webp",
+        "top5_gallery.png": "demo_escalate/step7_top5_gallery.webp",
+        "overlay.png": "demo_escalate/step7_overlay.webp"
+      },
+      "artifact_alt": {
+        "ncc_heatmap.png": "NCC heatmap, 405x405px; peak 0.621 at (x=68, y=65).",
+        "roughness_heatmap.png": "roughness-residual heatmap, 500x500px; peak 4.881 at (x=303, y=262).",
+        "top5_gallery.png": "Top-5 candidate gallery; ranks 1..5 with fused scores.",
+        "overlay.png": "Localisation overlay: winning box top-left (68, 65), size 96x96, score 0.674."
+      }
+    }
+  ],
+  "approval_request": {
+    "options": [
+      {
+        "rank": 1,
+        "x_px": 68.0,
+        "y_px": 65.0,
+        "score": 0.6737412214279175,
+        "lattice_score": null,
+        "roughness_score": 0.6206217408180237
+      },
+      {
+        "rank": 2,
+        "x_px": 52.0,
+        "y_px": 99.0,
+        "score": 0.6999666690826416,
+        "lattice_score": null,
+        "roughness_score": 0.2956242561340332
+      },
+      {
+        "rank": 3,
+        "x_px": 2.0,
+        "y_px": 65.0,
+        "score": 0.6166074872016907,
+        "lattice_score": null,
+        "roughness_score": 0.6198021769523621
+      }
+    ],
+    "margin": {
+      "margin": -0.02622544765472412,
+      "tau": 0.1,
+      "calibrated": false,
+      "p_correct": null,
+      "decision": "escalate"
+    }
+  }
+}

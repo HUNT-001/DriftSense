@@ -1,0 +1,148 @@
+{
+  "_about": "Real engine outputs re-captured by ui/scripts/capture_samples.py for the committed trace traces/demo_commit.jsonl (seed 0, family dram). Only localize results whose margin reproduces the committed trace are kept.",
+  "trace": "demo_commit.jsonl",
+  "seed": 0,
+  "family": "dram",
+  "localize": [
+    {
+      "trace_step": 7,
+      "result": {
+        "contract_version": "1.0.0",
+        "engine": "v2",
+        "engine_version": "v2-p2",
+        "mode": "auto",
+        "lattice_type": "grid",
+        "offset": {
+          "x_px": 203.05755418911576,
+          "y_px": 200.83782735466957,
+          "x_nm": null,
+          "y_nm": null,
+          "pixel_size_nm": null
+        },
+        "candidates": [
+          {
+            "rank": 1,
+            "x_px": 203.0,
+            "y_px": 201.0,
+            "score": 0.8139609959633911,
+            "lattice_score": null,
+            "roughness_score": 0.8161067962646484
+          },
+          {
+            "rank": 2,
+            "x_px": 144.0,
+            "y_px": 134.0,
+            "score": 0.3445992256679079,
+            "lattice_score": null,
+            "roughness_score": 0.682651698589325
+          },
+          {
+            "rank": 3,
+            "x_px": 262.0,
+            "y_px": 201.0,
+            "score": 0.31264160210576003,
+            "lattice_score": null,
+            "roughness_score": 0.7091251015663147
+          },
+          {
+            "rank": 4,
+            "x_px": 292.0,
+            "y_px": 134.0,
+            "score": 0.2820568996865083,
+            "lattice_score": null,
+            "roughness_score": 0.6984597444534302
+          },
+          {
+            "rank": 5,
+            "x_px": 173.0,
+            "y_px": 251.0,
+            "score": 0.25834558425926574,
+            "lattice_score": null,
+            "roughness_score": 0.4993700087070465
+          }
+        ],
+        "margin": {
+          "margin": 0.4693617702954832,
+          "tau": 0.1,
+          "calibrated": false,
+          "p_correct": null,
+          "decision": "commit"
+        },
+        "timings": [
+          {
+            "stage": "ingest",
+            "ms": 2.417400013655424
+          },
+          {
+            "stage": "lattice",
+            "ms": 44.297699991147965
+          },
+          {
+            "stage": "rectify",
+            "ms": 201.87729998724535
+          },
+          {
+            "stage": "roughness",
+            "ms": 9.338300034869462
+          },
+          {
+            "stage": "score",
+            "ms": 6.051100033801049
+          },
+          {
+            "stage": "cascade",
+            "ms": 79.66789999045432
+          },
+          {
+            "stage": "subpixel",
+            "ms": 1.846600032877177
+          },
+          {
+            "stage": "explain",
+            "ms": 55.532700032927096
+          }
+        ],
+        "total_ms": 401.1981000076048,
+        "artifacts": [
+          {
+            "kind": "heatmap",
+            "uri": "ncc_heatmap.png",
+            "sha256": "429b96f07711bbf0e862959d5e0ae91d6ff1fd57e788b01c0debf6ea338e513a"
+          },
+          {
+            "kind": "heatmap",
+            "uri": "roughness_heatmap.png",
+            "sha256": "658fa2948bca15e9710b6e5e6c05fb7c3f8570bc6c2afef558ef47dbe94dc3f4"
+          },
+          {
+            "kind": "candidates",
+            "uri": "top5_gallery.png",
+            "sha256": "4eb5831956d06217c73b17babcc0829482bc30be044cbf612e5bdc3649e3e331"
+          },
+          {
+            "kind": "overlay",
+            "uri": "overlay.png",
+            "sha256": "199f65d49c0d3b8633cdd23acae8b64905708b1c9a3628bbabe394d51ca04a6e"
+          }
+        ],
+        "warnings": [
+          "smooth_len snapped to KleidiCV-supported 31 (fallback path otherwise)",
+          "cascade: escalated to v1 fingerprint re-rank"
+        ]
+      },
+      "artifact_files": {
+        "ncc_heatmap.png": "demo_commit/step7_ncc_heatmap.webp",
+        "roughness_heatmap.png": "demo_commit/step7_roughness_heatmap.webp",
+        "top5_gallery.png": "demo_commit/step7_top5_gallery.webp",
+        "overlay.png": "demo_commit/step7_overlay.webp"
+      },
+      "artifact_alt": {
+        "ncc_heatmap.png": "NCC heatmap, 405x405px; peak 0.816 at (x=203, y=201).",
+        "roughness_heatmap.png": "roughness-residual heatmap, 500x500px; peak 4.548 at (x=499, y=325).",
+        "top5_gallery.png": "Top-5 candidate gallery; ranks 1..5 with fused scores.",
+        "overlay.png": "Localisation overlay: winning box top-left (203, 201), size 96x96, score 0.814."
+      }
+    }
+  ],
+  "approval_request": null
+}
