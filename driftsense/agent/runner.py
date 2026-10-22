@@ -33,7 +33,7 @@ from typing import Any, Literal
 from driftsense.agent.policy_rules import Decision, Observation, decide
 from driftsense.agent.tools import ToolRegistry
 from driftsense.agent.trace import TraceWriter
-from driftsense.contracts import ApprovalDecision, TraceEvent
+from driftsense.contracts import ApprovalDecision, LocalizeResult, TraceEvent
 from driftsense.sim import VirtualSEM
 from driftsense.sim.instrument import AcquisitionLimitError, DoseError
 
@@ -54,6 +54,8 @@ class EpisodeResult:
     committed_move_nm: tuple[float, float] | None
     approval: ApprovalDecision | None
     events: list[TraceEvent]
+    # LocalizeResult the terminal decision was taken on (None if no localize ran)
+    last_result: LocalizeResult | None = None
 
 
 class _SafeExec:
@@ -63,9 +65,11 @@ class _SafeExec:
         self._pool = ThreadPoolExecutor(max_workers=1)
         self._timeout = timeout_s
 
-    def call(self, fn: Callable[..., Any], **kwargs: Any) -> Any:
+    def call(
+        self, fn: Callable[..., Any], *, _timeout_s: float | None | str = "default", **kwargs: Any
+    ) -> Any:
         fut = self._pool.submit(fn, **kwargs)
-        return fut.result(timeout=self._timeout)
+        return fut.result(timeout=self._timeout if _timeout_s == "default" else _timeout_s)
 
     def close(self) -> None:
         self._pool.shutdown(wait=False, cancel_futures=True)
@@ -87,6 +91,7 @@ def run_episode(
     planner: Any | None = None,
     trace_path: str | None = None,
     tool_timeout_s: float = 15.0,
+    approval_timeout_s: float | None = None,
     on_reference: Callable[[int], None] | None = None,
     on_decision: Callable[[int, tuple[float, float]], None] | None = None,
 ) -> EpisodeResult:
@@ -100,6 +105,12 @@ def run_episode(
     evaluator-only hooks fired just after the reference acquire and once at the
     terminal decision respectively (they may read ``sem.verify`` to grade the
     drift *change* since the reference); agent code never calls them.
+
+    ``tool_timeout_s`` bounds every instrument/localizer tool call. The human
+    approval wait is bounded separately by ``approval_timeout_s`` (None = the
+    ``approval_cb`` enforces its own deadline), so an operator taking longer than
+    a tool timeout does not abort the episode. ``EpisodeResult.last_result`` is
+    the LocalizeResult the terminal decision was taken on.
     """
     import time
 
@@ -129,7 +140,11 @@ def run_episode(
             return True
         return False
 
+    decision_result: LocalizeResult | None = None
+
     def _fire_decision() -> None:
+        nonlocal decision_result
+        decision_result = reg.last_result
         if on_decision is not None and reg.last_search_meta is not None and reg.last_estimate_nm is not None:
             on_decision(int(reg.last_search_meta["acq_index"]), reg.last_estimate_nm)
 
@@ -176,7 +191,10 @@ def run_episode(
             if dec.tool == "request_human_approval":
                 _fire_decision()
                 approval = ex.call(
-                    reg.request_human_approval, top3=reg.top3(), evidence=dec.kwargs.get("evidence", {})
+                    reg.request_human_approval,
+                    _timeout_s=approval_timeout_s,
+                    top3=reg.top3(),
+                    evidence=dec.kwargs.get("evidence", {}),
                 )
                 trace.emit(
                     "escalate",
@@ -200,6 +218,7 @@ def run_episode(
             _fire_decision()
             approval = ex.call(
                 reg.request_human_approval,
+                _timeout_s=approval_timeout_s,
                 top3=reg.top3(),
                 evidence={"reason": "max_steps reached", "margin": final_margin, "tau": tau},
             )
@@ -244,6 +263,7 @@ def run_episode(
         committed_move_nm=committed_move,
         approval=approval,
         events=trace.events,
+        last_result=decision_result if decision_result is not None else reg.last_result,
     )
 
 

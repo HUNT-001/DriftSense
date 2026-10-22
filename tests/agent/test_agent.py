@@ -246,3 +246,42 @@ def test_g5_results_readback_and_invariants():
 
 def test_results_json_is_valid_json():
     json.loads((REPO / "results" / "agent" / "g5_episode.json").read_text(encoding="utf-8"))
+
+
+def test_mcp_server_registers_all_tools_when_mcp_installed():
+    """With mcp installed, the real FastMCP server must build and expose the six tools."""
+    import asyncio
+
+    pytest.importorskip("mcp.server.fastmcp")
+    from driftsense.agent.mcp_server import TOOL_NAMES, create_mcp_server
+
+    server = create_mcp_server()
+    names = {t.name for t in asyncio.run(server.list_tools())}
+    assert names == set(TOOL_NAMES)
+
+
+def test_slow_human_approval_is_not_a_tool_timeout():
+    # The operator may take far longer than one tool call; only approval_timeout_s bounds that wait.
+    import time
+
+    from driftsense.contracts import ApprovalDecision
+
+    def slow_operator(req):
+        time.sleep(3.5)
+        return ApprovalDecision(chosen_rank=1, approver="op")
+
+    sem = VirtualSEM(seed=0, **SMALL)
+    r = run_episode(
+        sem, tau=5.0, run_id="t-slow", max_steps=3, tool_timeout_s=3.0, approval_cb=slow_operator, **EP
+    )
+    assert r.outcome == "escalate"
+    assert r.approval is not None and r.approval.chosen_rank == 1
+
+
+def test_episode_exposes_decision_result():
+    sem = VirtualSEM(seed=0, **SMALL)
+    r = run_episode(sem, tau=0.10, run_id="t-res", **EP)
+    assert r.outcome == "commit" and r.last_result is not None
+    # the result the commit was taken on clears tau (not the post-commit verify frame)
+    assert r.last_result.margin.margin >= r.tau
+    assert abs(r.last_result.margin.margin - r.final_margin) < 1e-9
