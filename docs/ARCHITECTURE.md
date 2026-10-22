@@ -111,6 +111,9 @@ path has no per-pixel Python loops.
 The accuracy results were produced with OpenCV
 4.12.0<!--src:results/sealed/v2_single.json#@env.opencv--> on a development machine, not on
 the worker.
+A DEV equivalence check of the frozen engine on OpenCV 5.0.0<!--src:results/bench/cv5_equivalence.json#@env.opencv-->
+gives the same decisions and top-1 hits 
+(see [SUBMISSION.md](../SUBMISSION.md)).
 
 ## 3. Agent loop: commit, re-acquire or escalate
 

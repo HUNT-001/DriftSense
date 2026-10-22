@@ -31,6 +31,9 @@ v2 single-shot top-1 is below the v1 baseline.
 These results come from synthetic images on a development machine running
 OpenCV 4.12.0<!--src:results/sealed/v2_single.json#@env.opencv-->; the full evaluation, the failed rules and
 the limitations are in [SUBMISSION.md](SUBMISSION.md).
+A DEV equivalence check on OpenCV 5.0.0<!--src:results/bench/cv5_equivalence.json#@env.opencv-->
+agrees on every decision and top-1 hit (offsets are not bit-identical; details in
+[SUBMISSION.md](SUBMISSION.md)).
 
 ## Quickstart
 
