@@ -388,24 +388,23 @@ class Worker:
                         poll_s=st.approval_poll_s,
                         on_wait=uploader.flush,
                     )
-                    with agent.capture_localize() as cap:
-                        ep = run_episode(
-                            sem,
-                            tau=st.agent_tau,
-                            run_id=job_id,
-                            max_steps=st.agent_max_steps,
-                            max_dose=st.agent_max_dose,
-                            ref_fov_nm=AGENT_REF_FOV_NM,
-                            ref_dwell_us=AGENT_REF_DWELL_US,
-                            base_fov_nm=AGENT_BASE_FOV_NM,
-                            base_dwell_us=AGENT_BASE_DWELL_US,
-                            template_frac=AGENT_TEMPLATE_FRAC,
-                            approval_cb=approver,
-                            trace_path=str(trace_path),
-                            **agent.episode_timeouts(run_episode, st),
-                        )
+                    ep = run_episode(
+                        sem,
+                        tau=st.agent_tau,
+                        run_id=job_id,
+                        max_steps=st.agent_max_steps,
+                        max_dose=st.agent_max_dose,
+                        ref_fov_nm=AGENT_REF_FOV_NM,
+                        ref_dwell_us=AGENT_REF_DWELL_US,
+                        base_fov_nm=AGENT_BASE_FOV_NM,
+                        base_dwell_us=AGENT_BASE_DWELL_US,
+                        template_frac=AGENT_TEMPLATE_FRAC,
+                        approval_cb=approver,
+                        trace_path=str(trace_path),
+                        **agent.episode_timeouts(run_episode, st),
+                    )
                 uploader.flush()  # the complete trace, episode_end included
-                fields = self._finish_episode(job_id, family, seed, ep, cap, approver)
+                fields = self._finish_episode(job_id, family, seed, ep, approver)
             except Exception as exc:  # noqa: BLE001
                 return self._transient_failure(msg, job_id, exc, "v2", started)
 
@@ -426,15 +425,14 @@ class Worker:
         return status
 
     def _finish_episode(
-        self, job_id: str, family: str, seed: int, ep: Any, cap: agent.Capture, approver: agent.DynamoApprover
+        self, job_id: str, family: str, seed: int, ep: Any, approver: agent.DynamoApprover
     ) -> dict[str, Any]:
         """Store result.json / episode.json / frames and build the final transition's fields."""
-        call = agent.decision_call(ep.events, cap)
         result = None
-        if call is not None:
-            result = self._store_artifacts(job_id, call.result, call.template, call.search)
-            self.artifacts.put_bytes(f"jobs/{job_id}/template.png", call.template, "image/png")
-            self.artifacts.put_bytes(f"jobs/{job_id}/search.png", call.search, "image/png")
+        if ep.last_result is not None and ep.template_png is not None and ep.search_png is not None:
+            result = self._store_artifacts(job_id, ep.last_result, ep.template_png, ep.search_png)
+            self.artifacts.put_bytes(f"jobs/{job_id}/template.png", ep.template_png, "image/png")
+            self.artifacts.put_bytes(f"jobs/{job_id}/search.png", ep.search_png, "image/png")
         final = agent.final_state(ep, result, timed_out=approver.timed_out)
         summary = agent.episode_summary(
             ep, family=family, seed=seed, settings=self.settings, post_commit=agent.post_commit_verify(ep)

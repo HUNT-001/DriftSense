@@ -92,8 +92,8 @@ takes about 1 to 3 s, plus any operator wait.
 - **Result:** `JobStatus.result` is the `LocalizeResult` the terminal decision was taken on, which is the last
   localize before commit or escalate. The post-commit verification frame is reported in `episode.json`. If the
   operator chose rank k, `result.offset` becomes that candidate and the `operator_choice` audit warning is appended.
-  `EpisodeResult` doesn't expose any LocalizeResult, so the service captures them by wrapping
-  `driftsense.agent.tools._api_localize` (a read-only pass-through) for the duration of the episode.
+  The service reads it from `EpisodeResult.last_result`, and the template and search PNGs it was computed on
+  from `EpisodeResult.template_png` / `search_png`.
 - **Artifacts** (served at `GET /v1/jobs/{id}/artifacts/<name>`):
   - `result.json` and `episode.json`, both also listed in `result.artifacts` with `kind: "json"`
   - `overlay.png` and `top5_gallery.png`

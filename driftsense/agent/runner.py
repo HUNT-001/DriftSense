@@ -56,6 +56,9 @@ class EpisodeResult:
     events: list[TraceEvent]
     # LocalizeResult the terminal decision was taken on (None if no localize ran)
     last_result: LocalizeResult | None = None
+    # PNG inputs of that localize: the reference template and the search frame it ran on
+    template_png: bytes | None = None
+    search_png: bytes | None = None
 
 
 class _SafeExec:
@@ -110,7 +113,8 @@ def run_episode(
     approval wait is bounded separately by ``approval_timeout_s`` (None = the
     ``approval_cb`` enforces its own deadline), so an operator taking longer than
     a tool timeout does not abort the episode. ``EpisodeResult.last_result`` is
-    the LocalizeResult the terminal decision was taken on.
+    the LocalizeResult the terminal decision was taken on; ``template_png`` and
+    ``search_png`` are the PNG inputs it was computed from.
     """
     import time
 
@@ -141,10 +145,12 @@ def run_episode(
         return False
 
     decision_result: LocalizeResult | None = None
+    decision_search: bytes | None = None
 
     def _fire_decision() -> None:
-        nonlocal decision_result
+        nonlocal decision_result, decision_search
         decision_result = reg.last_result
+        decision_search = reg.last_search_bytes
         if on_decision is not None and reg.last_search_meta is not None and reg.last_estimate_nm is not None:
             on_decision(int(reg.last_search_meta["acq_index"]), reg.last_estimate_nm)
 
@@ -264,6 +270,8 @@ def run_episode(
         approval=approval,
         events=trace.events,
         last_result=decision_result if decision_result is not None else reg.last_result,
+        template_png=reg.template_bytes,
+        search_png=decision_search if decision_result is not None else reg.last_search_bytes,
     )
 
 
