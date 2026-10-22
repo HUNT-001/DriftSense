@@ -16,7 +16,7 @@ SERVICE_DEFAULT_ENGINE = "v2"
 # ---------- Agent episode operating point ----------
 # Copied verbatim from eval/agent_eval.py (TAU, SITE_NM, PIXEL_NM, REF_FOV_NM, REF_DWELL_US, BASE_FOV_NM,
 # BASE_DWELL_US, TEMPLATE_FRAC, MAX_STEPS; the main G5 evaluation runs with no dose cap, max_dose=None).
-# eval/ is not an installed package, so it is not imported. Keep these in sync with that file: the
+# eval/ is not an installed package, so it is not imported; tests/service/test_settings_sync.py keeps them in sync: the
 # service then runs exactly the episodes behind results/agent/g5_episode.json.
 AGENT_TAU = 0.10
 AGENT_SITE_NM = 2000.0
