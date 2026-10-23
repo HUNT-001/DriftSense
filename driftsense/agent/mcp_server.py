@@ -20,7 +20,18 @@ from __future__ import annotations
 
 from typing import Any
 
-from driftsense.agent.tools import TOOL_SCHEMAS, ToolRegistry, tool_json_schemas
+# The arg models must be module-level: with `from __future__ import annotations`
+# FastMCP resolves each tool's string annotations against this module's globals.
+from driftsense.agent.tools import (
+    TOOL_SCHEMAS,
+    AcquireArgs,
+    ApprovalArgs,
+    CommitStageMoveArgs,
+    LocalizeArgs,
+    RefineArgs,
+    ToolRegistry,
+    tool_json_schemas,
+)
 from driftsense.agent.trace import TraceWriter
 from driftsense.sim import VirtualSEM
 
@@ -88,14 +99,6 @@ def create_mcp_server(server_name: str = "driftsense-agent", **registry_kwargs: 
             "FastMCP unavailable: `mcp` is not installed. Add it to requirements.in "
             "on a shared/* branch (make lock + both approvals) to enable the stdio server."
         ) from exc
-
-    from driftsense.agent.tools import (
-        AcquireArgs,
-        ApprovalArgs,
-        CommitStageMoveArgs,
-        LocalizeArgs,
-        RefineArgs,
-    )
 
     reg = build_registry(**registry_kwargs)
     mcp = FastMCP(server_name)

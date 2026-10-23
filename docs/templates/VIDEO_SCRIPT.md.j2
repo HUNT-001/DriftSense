@@ -1,0 +1,56 @@
+{#- requires: sealed/v1 sealed/ncc sealed/v2_single sealed/agent_rules sealed/decisions -#}
+# DriftSense Pilot: demo video script (5:00 maximum)
+
+Every number spoken or shown comes from `results/**/*.json`, rendered into this page. Read it off this
+page, never from memory. Record the live parts with `make dev-server` (no AWS needed) or the deployed
+URL. The escalating site is `vsem-dram-17`; `vsem-dram-7` commits on the first look.
+The v1 MunichTech script is kept in `VIDEO_SCRIPT_MUNICHTECH.md`.
+
+| Time | Shot | Voice-over |
+|---|---|---|
+| 0:00–0:20 | Team on camera, then a grid of identical transistors | "On a repeating array the microscope cannot tell which copy it is looking at. Measuring the wrong one silently corrupts process control." |
+| 0:20–0:45 | UI result page: the NCC heatmap (many equal peaks) next to the roughness heatmap (one peak) | "Frequency tells you where a copy could be. Roughness tells you which one is real. The agent decides where to look next, and when to ask a human." |
+| 0:45–1:45 | Live run of `vsem-dram-17`: the timeline rows *low SNR → double the dwell*, *margin below τ → contour re-localize* | "Each row is an OpenCV 5 measurement. The uniqueness margin is compared with τ, and that comparison picks the next action: more dwell, another rectification, a wider field of view." |
+| 1:45–2:15 | The approval card: top 3 candidates, margin vs τ, Approve rank 1, then Succeeded | "When it cannot prove uniqueness within its step and dose budget, it never moves the stage. It asks an operator, and the decision goes in the audit trail." |
+| 2:15–2:45 | MCP Inspector (or `python scripts/mcp_demo_client.py`) calling `acquire` twice and then `localize` | "The same six tools are exposed over MCP, so any MCP client can operate the virtual SEM. The safety gate stays in the runner." |
+| 2:45–3:30 | `docs/ARCHITECTURE.md` diagrams | One line per box: CloudFront UI, HTTP API on arm64 Lambda, SQS, the Graviton4 worker on the COOL AMI running the engine and agent, CloudWatch canary and alarms. |
+| 3:30–4:20 | `SUBMISSION.md` result tables | See the numbers below. Say the negative results out loud. |
+| 4:20–4:50 | Failure gallery (`results/sealed/v2_single_failures.png`) | "Where it fails: rotated, degraded arrays where two copies are genuinely indistinguishable in one frame." |
+| 4:50–5:00 | Links | Repo, live demo, report. |
+
+## Numbers for 3:30–4:20 (sealed set, pre-registered protocol)
+
+- Single-shot top-1, pooled: v2 {{ sealed/v2_single.json | metrics['top1.pooled'].value | pct }}%,
+  v1 {{ sealed/v1.json | metrics['top1.pooled'].value | pct }}%, NCC
+  {{ sealed/ncc.json | metrics['top1.pooled'].value | pct }}%. Say plainly that v2 is *below* both
+  baselines as a point estimator.
+- v2 commits on {{ sealed/v2_single.json | metrics['commits.n'].value | int }} of
+  {{ sealed/v2_single.json | metrics['top1.pooled'].n | int }} sealed pairs at the calibrated threshold:
+  false-confident rate {{ sealed/v2_single.json | metrics['false_confident.pooled'].value | pct }}%,
+  because it abstains instead of guessing. v1 commits on
+  {{ sealed/v1.json | metrics['commits.n'].value | int }} with a false-confident rate of
+  {{ sealed/v1.json | metrics['false_confident.pooled'].value | pct2 }}%.
+- The truth is in v2's candidate set on
+  {{ sealed/v2_single.json | metrics['set_recall.pooled_structured'].value | pct }}% of structured pairs.
+  The hard part is telling it from its copies.
+- Agent, sealed episode set
+  (n = {{ sealed/agent_rules.json | metrics['n_episodes'].value | int }}): success
+  {{ sealed/agent_rules.json | metrics['agent_rules.success'].value | pct }}% versus
+  {{ sealed/agent_rules.json | metrics['v2_single.success'].value | pct }}% single-shot, false-commit
+  {{ sealed/agent_rules.json | metrics['agent_rules.false_commit'].value | pct }}%. It pays in dose: mean
+  {{ sealed/agent_rules.json | metrics['agent_rules.mean_dose'].value | g }} electrons against a budget of
+  {{ sealed/agent_rules.json | metrics['dose_budget'].value | g }}, so decision rule D12 fails.
+- Sealed decision gate overall pass: `{{ sealed/decisions.json | overall_pass }}`.
+{% if exists("bench/cv5_equivalence") %}
+- OpenCV version: the sealed numbers were produced on OpenCV
+  {{ sealed/v2_single.json | env.opencv }}. On DEV, OpenCV
+  {{ bench/cv5_equivalence.json | env.opencv }} agrees on
+  {{ bench/cv5_equivalence.json | metrics['pairs.decision_agreement'].value | pct }}% of decisions and
+  {{ bench/cv5_equivalence.json | metrics['pairs.top1_hit_agreement'].value | pct }}% of top-1 hits.
+{% endif %}
+{% if exists("bench/cool_bench") %}
+- COOL: read the headline and its verdict from `docs/COOL_EVIDENCE.md`. If its confidence interval includes no change, say "no
+  measurable difference".
+{% else %}
+- COOL: the benchmark campaign has not run yet. Do not state a COOL speed-up.
+{% endif %}

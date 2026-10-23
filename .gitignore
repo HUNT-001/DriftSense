@@ -63,3 +63,11 @@ Thumbs.db
 # Editor temporary files
 *.swp
 *.swo
+
+# DriftSense Pilot: regenerable / never-commit (A handoffs PR #12, #14)
+eval/SEALED_UNLOCK
+outputs/dataset_calib/**/*.png
+ui/node_modules/
+ui/dist/
+infra/cdk.out/
+infra/.venv/

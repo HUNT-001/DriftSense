@@ -1,0 +1,118 @@
+{
+  "schema_id": "driftsense.results/1",
+  "name": "cv_equivalence_4.12.0_vs_5.0.0",
+  "produced_by": "bench/cv_equivalence.py",
+  "git_sha": "5053f120db3dc84abaf7b05d30dc30166e348098",
+  "created_at": "2026-10-21T04:27:57.944862Z",
+  "dataset": "dev",
+  "env": {
+    "python": "3.12.15",
+    "opencv": "5.0.0",
+    "numpy": "2.5.4",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "arch": "AMD64",
+    "instance_type": null,
+    "cool": false
+  },
+  "metrics": {
+    "pairs.offset_equal_rate": {
+      "value": 0.00625,
+      "unit": "rate",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 320
+    },
+    "pairs.offset_max_abs_diff_px": {
+      "value": 348.2171476234571,
+      "unit": "px",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 320
+    },
+    "pairs.offset_within_0p1px_rate": {
+      "value": 0.95625,
+      "unit": "rate",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 320
+    },
+    "pairs.offset_diff_gt_1px.n": {
+      "value": 9.0,
+      "unit": "count",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 320
+    },
+    "pairs.offset_diff_gt_1px_both_wrong.n": {
+      "value": 9.0,
+      "unit": "count",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 320
+    },
+    "pairs.margin_median_abs_diff": {
+      "value": 0.0,
+      "unit": "margin",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 320
+    },
+    "pairs.margin_max_abs_diff": {
+      "value": 5.426732946910398,
+      "unit": "margin",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 320
+    },
+    "pairs.decision_agreement": {
+      "value": 1.0,
+      "unit": "rate",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 320
+    },
+    "pairs.top1_hit_agreement": {
+      "value": 1.0,
+      "unit": "rate",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 320
+    },
+    "pairs.top1_hit_rate.base": {
+      "value": 0.34375,
+      "unit": "rate",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 320
+    },
+    "pairs.top1_hit_rate.cand": {
+      "value": 0.34375,
+      "unit": "rate",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 320
+    },
+    "episodes.outcome_agreement": {
+      "value": 1.0,
+      "unit": "rate",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 8
+    },
+    "episodes.steps_agreement": {
+      "value": 1.0,
+      "unit": "rate",
+      "ci_low": null,
+      "ci_high": null,
+      "n": 8
+    },
+    "offset_tol_px": {
+      "value": 0.001,
+      "unit": "px",
+      "ci_low": null,
+      "ci_high": null,
+      "n": null
+    }
+  },
+  "protocol_sha256": null
+}
