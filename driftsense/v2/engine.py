@@ -25,7 +25,9 @@ phase-correlate / ECC in subpixel). Rotation uses warpPerspective (3x3).
 from __future__ import annotations
 
 import hashlib
+import threading
 import time
+from collections import OrderedDict
 from dataclasses import dataclass
 
 import cv2
@@ -161,6 +163,31 @@ def _sha(b: bytes) -> str:
     return hashlib.sha256(b).hexdigest()
 
 
+# S9 PNG bytes keyed by sha256, so an in-process caller (the service worker) can upload the
+# heatmaps the engine already rendered. LocalizeResult stays bytes-free; this never changes a result.
+_ARTIFACT_BYTES: OrderedDict[str, bytes] = OrderedDict()
+_ARTIFACT_BYTES_MAX = 32
+_ARTIFACT_LOCK = threading.Lock()
+
+
+def _remember(png: bytes) -> str:
+    sha = _sha(png)
+    with _ARTIFACT_LOCK:
+        _ARTIFACT_BYTES[sha] = png
+        _ARTIFACT_BYTES.move_to_end(sha)
+        while len(_ARTIFACT_BYTES) > _ARTIFACT_BYTES_MAX:
+            _ARTIFACT_BYTES.popitem(last=False)
+    return sha
+
+
+def artifact_bytes(sha256: str | None) -> bytes | None:
+    """PNG bytes of a recent S9 artifact by its Artifact.sha256, or None if evicted/unknown."""
+    if not sha256:
+        return None
+    with _ARTIFACT_LOCK:
+        return _ARTIFACT_BYTES.get(sha256)
+
+
 def localize(template_bytes: bytes, search_bytes: bytes, mode: Mode, budget: Budget) -> LocalizeResult:
     """Full v2 localisation: S0->S9, returning a complete LocalizeResult."""
     clk = _Clock()
@@ -284,7 +311,7 @@ def localize(template_bytes: bytes, search_bytes: bytes, mode: Mode, budget: Bud
     if mode in (Mode.ACCURATE, Mode.AUTO):
         rough_disp = np.abs(rs.residual).astype(np.float32)
         for art in build_all(search_r, cands, score_map, rough_disp, tw, th):
-            artifacts.append(Artifact(kind=art.kind, uri=f"{art.name}.png", sha256=_sha(art.png)))
+            artifacts.append(Artifact(kind=art.kind, uri=f"{art.name}.png", sha256=_remember(art.png)))
     clk.mark("explain", t0)
 
     total_ms = (time.perf_counter() - t_total) * 1e3

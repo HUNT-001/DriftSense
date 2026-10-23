@@ -35,11 +35,13 @@ exactly that S3 key (for example `jobs/<id>/overlay.png`). The UI resolves a URI
 `GET /v1/jobs/{id}/artifacts/<basename>`. The worker sanitizes local file names into the allowed name set, so
 `heat map.png` is stored as `heat_map.png`. `result.json` is always available through the same route.
 
-**v2 artifacts.** v2 returns `Artifact(uri="<name>.png", sha256=...)` with no bytes and no file on disk. The worker
-re-renders `overlay` and `top5_gallery` from the inputs with `driftsense.v2.explain`, on the original search frame,
-and sets `sha256` to the hash of the uploaded bytes. It drops the heatmaps, which need engine-internal score maps,
-and appends the warning `service: artifacts not materialized (engine returned no bytes): ...`. Every artifact left
-in the list can be downloaded.
+**v2 artifacts.** v2 returns `Artifact(uri="<name>.png", sha256=...)` with no bytes and no file on disk. The engine
+keeps the PNGs it rendered in this process keyed by `sha256` (`driftsense.v2.engine.artifact_bytes`), so the worker
+uploads all of them verbatim, the NCC and roughness heatmaps included, and `sha256` matches the uploaded bytes. If an
+entry has been evicted, the worker re-renders `overlay` and `top5_gallery` from the inputs with
+`driftsense.v2.explain`; anything else is dropped with the warning
+`service: artifacts not materialized (engine returned no bytes): ...`. Every artifact left in the list can be
+downloaded.
 
 CORS: only `UI_ORIGIN` is allowed (methods GET/POST, header `content-type`). If it is unset, no CORS headers are sent.
 

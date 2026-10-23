@@ -135,6 +135,16 @@ def artifact_object_name(filename: str) -> str:
     return name or "artifact"
 
 
+def engine_artifact_bytes(sha256: str | None) -> bytes | None:
+    """The PNG the v2 engine rendered in this process for this sha256 (heatmaps included), else None."""
+    try:
+        from driftsense.v2.engine import artifact_bytes
+    except ImportError:  # engine without the cache: fall back to re-rendering
+        return None
+    data = artifact_bytes(sha256)
+    return data if data is not None and hashlib.sha256(data).hexdigest() == sha256 else None
+
+
 def render_explain_artifact(
     name: str, result: LocalizeResult, template: bytes | None, search: bytes | None
 ) -> bytes | None:
@@ -517,10 +527,10 @@ class Worker:
 
         * a uri that is a local file is uploaded as-is;
         * v2 returns artifacts as bare names (e.g. ``overlay.png``) with a sha256 but no bytes. The
-          service re-renders the ones it can from public inputs with ``driftsense.v2.explain``
-          (``overlay``, ``top5_gallery``) on the original search frame;
-        * anything else (v2's heatmaps need engine-internal score maps) is dropped from the list with a
-          warning, so the UI never gets a uri that 404s.
+          engine keeps the PNGs it rendered in this process, keyed by sha256, so every one (the NCC and
+          roughness heatmaps included) is uploaded verbatim; if one has been evicted, the service
+          re-renders ``overlay``/``top5_gallery`` from public inputs with ``driftsense.v2.explain``;
+        * anything else is dropped from the list with a warning, so the UI never gets a uri that 404s.
         """
         if not result.artifacts:
             return result
@@ -535,7 +545,9 @@ class Worker:
                 data, name = path.read_bytes(), artifact_object_name(path.name)
                 sha = art.sha256
             else:
-                data = render_explain_artifact(path.stem, result, template, search)
+                data = engine_artifact_bytes(art.sha256) or render_explain_artifact(
+                    path.stem, result, template, search
+                )
                 if data is None:
                     dropped.append(art.uri)
                     continue
