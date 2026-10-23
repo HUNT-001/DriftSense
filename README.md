@@ -52,10 +52,12 @@ Run an agent episode set on the virtual SEM (prints the four-arm summary;
 python eval/agent_eval.py --n 4 --no-write
 ```
 
-MCP server over stdio (inspect it with the MCP Inspector):
+MCP server over stdio or streamable HTTP (inspect it with the MCP Inspector). A
+`commit_stage_move` below tau is refused over MCP exactly as in the runner:
 
 ```bash
 python -m driftsense.agent.mcp_server
+python -m driftsense.agent.mcp_server --transport streamable-http --port 8001   # http://127.0.0.1:8001/mcp
 npx @modelcontextprotocol/inspector python -m driftsense.agent.mcp_server
 ```
 

@@ -71,3 +71,7 @@ ui/node_modules/
 ui/dist/
 infra/cdk.out/
 infra/.venv/
+
+# deploy outputs and smoke evidence (account-specific)
+infra/cdk-outputs.json
+smoke-evidence.json

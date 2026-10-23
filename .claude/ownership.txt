@@ -28,6 +28,8 @@ results/agent/*              A
 docs/REPORT.md               A
 docs/virtual_sem.md          A
 docs/PRIOR_WORK.md           A
+docs/templates/REPORT.md.j2  A
+docs/templates/PRIOR_WORK.md.j2 A
 service/*                    B
 infra/*                      B
 bench/*                      B

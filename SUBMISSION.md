@@ -100,11 +100,13 @@ uncertainty and the remaining step and dose budget after every localisation and
 picks the next tool: more dwell, a wider field of view, more rectification
 hypotheses, a refinement pass, a commit, or a human-approval request. The
 runner, not the policy, enforces the safety gates: it refuses any commit below
-the calibrated threshold, caps the number of steps, applies a dose budget and a
-per-tool timeout, and logs every step as a JSONL trace whose commit event
-records the margin and threshold that justified it. An optional LLM planner may
-only propose perception tools. The same six pydantic-validated tools are served
-over MCP with FastMCP (`python -m driftsense.agent.mcp_server`).
+the calibrated threshold, caps the number of steps, applies a dose budget when
+one is configured and a per-tool timeout, and logs every step as a JSONL trace
+whose commit event records the margin and threshold that justified it. An
+optional LLM planner may only propose perception tools. The same six
+pydantic-validated tools are served over MCP with FastMCP, over stdio or
+streamable HTTP (`python -m driftsense.agent.mcp_server`), and a commit below
+the threshold is refused over MCP too.
 
 ## Evaluation
 
@@ -251,7 +253,13 @@ Its top-1 criterion failed: v2's top-1 on the development split,
   success is not a success rate over the sealed pairs.
 - The agent's mean dose exceeds the pre-registered per-episode budget; the
   evaluation did not enforce the budget in the runner.
-- The DRAM contour stage (S5) is a scaffold in this build.
+- The DRAM contour stage (S5) is a scaffold in this build, so the agent's
+  contour and extra-rectification actions re-run the same engine path; only
+  re-acquisition (more dwell, a wider field of view) changes the evidence.
+- The optional LLM planner was evaluated only with an offline stand-in; no
+  hosted model is called in this build, and the rules policy runs every episode.
+- The deployed service runs the evaluated operating point, which has no dose
+  cap; the step cap bounds dose instead.
 - The pre-registered sealed gate did not pass; see the table above.
 
 ## Responsible use

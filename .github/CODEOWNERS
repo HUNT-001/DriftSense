@@ -10,6 +10,9 @@
 /scripts/                 @Premchand006
 /docs/                    @Premchand006
 /docs/REPORT.md           @HUNT-001
+/docs/templates/REPORT.md.j2     @HUNT-001
+/docs/templates/PRIOR_WORK.md.j2 @HUNT-001
+/docs/PRIOR_WORK.md       @HUNT-001
 /driftsense/contracts.py  @HUNT-001 @Premchand006
 /driftsense/api.py        @HUNT-001 @Premchand006
 /contracts/               @HUNT-001 @Premchand006
