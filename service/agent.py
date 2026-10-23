@@ -17,13 +17,12 @@ Nothing here reads ground truth: ``on_reference`` / ``on_decision`` (evaluator-o
 
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
 import threading
 import time
-from collections.abc import Callable, Iterator
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -170,78 +169,6 @@ class DynamoApprover:
             self.sleep(self.poll_s)
         self.decision = decision
         return decision
-
-
-# ---------- capturing the episode's LocalizeResults ----------
-@dataclass
-class LocalizeCall:
-    template: bytes
-    search: bytes
-    result: LocalizeResult
-
-
-@dataclass
-class Capture:
-    calls: list[LocalizeCall] = field(default_factory=list)
-    available: bool = True
-
-
-_CAPTURE_LOCK = threading.Lock()
-
-
-@contextlib.contextmanager
-def capture_localize() -> Iterator[Capture]:
-    """Record every LocalizeResult the agent's tools compute during one episode.
-
-    ``EpisodeResult`` does not expose the LocalizeResult(s) and the trace carries only summaries, so
-    the service wraps ``driftsense.agent.tools._api_localize`` (the name the tools call) for the
-    duration of the episode. Read-only: arguments and results pass through unchanged. Serialized by a
-    lock (the worker runs one episode at a time).
-    """
-    cap = Capture()
-    with _CAPTURE_LOCK:
-        from driftsense.agent import tools
-
-        orig = getattr(tools, "_api_localize", None)
-        if orig is None:
-            log.warning("driftsense.agent.tools._api_localize not found: episode result will be empty")
-            cap.available = False
-            yield cap
-            return
-
-        def recording(
-            template_bytes: bytes, search_bytes: bytes, *args: Any, **kwargs: Any
-        ) -> LocalizeResult:
-            result = orig(template_bytes, search_bytes, *args, **kwargs)
-            cap.calls.append(LocalizeCall(template_bytes, search_bytes, result))
-            return result
-
-        tools._api_localize = recording
-        try:
-            yield cap
-        finally:
-            tools._api_localize = orig
-
-
-def decision_call(events: list[Any], cap: Capture) -> LocalizeCall | None:
-    """The localize the terminal decision was taken on: the last one before commit/escalate.
-
-    (After a commit the runner re-acquires and re-localizes to verify centring; that verification
-    result is reported in episode.json, not as the job result.)
-    """
-    if not cap.calls:
-        return None
-    seen, at_decision = 0, None
-    for ev in events:
-        terminal_call = ev.kind == "tool_call" and ev.tool in ("commit_stage_move", "request_human_approval")
-        if terminal_call or ev.kind in ("commit_move", "escalate"):
-            at_decision = seen
-            break
-        if ev.kind == "tool_result" and ev.tool == "localize":
-            seen += 1
-    if not at_decision:
-        return cap.calls[-1]
-    return cap.calls[min(at_decision, len(cap.calls)) - 1]
 
 
 # ---------- outcome -> job state ----------

@@ -12,6 +12,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import cv2
+import numpy as np
 import pytest
 from pydantic import ValidationError
 
@@ -285,3 +287,9 @@ def test_episode_exposes_decision_result():
     # the result the commit was taken on clears tau (not the post-commit verify frame)
     assert r.last_result.margin.margin >= r.tau
     assert abs(r.last_result.margin.margin - r.final_margin) < 1e-9
+    # and the PNG inputs it was computed on: the reference crop and the decision frame
+    assert r.template_png is not None and r.search_png is not None
+    assert r.template_png.startswith(b"\x89PNG") and r.search_png.startswith(b"\x89PNG")
+    tpl = cv2.imdecode(np.frombuffer(r.template_png, np.uint8), cv2.IMREAD_UNCHANGED)
+    srch = cv2.imdecode(np.frombuffer(r.search_png, np.uint8), cv2.IMREAD_UNCHANGED)
+    assert tpl.shape[0] < srch.shape[0] and tpl.shape[1] < srch.shape[1]

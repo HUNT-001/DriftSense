@@ -807,7 +807,10 @@ def test_person_a_report_resolves_every_placeholder(tmp_path, capsys, source):
         (tdir / (name + ".j2")).write_text(text, encoding="utf-8")
         body = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
         expected += len(A_PLACEHOLDER_RE.findall(body))
-    assert expected == 68  # A's count at 584c0ab
+    if source == "fixture":
+        assert expected == 68  # A's count at 584c0ab; the live report on A's branch is free to grow
+    else:
+        assert expected > 0
     capsys.readouterr()
     assert render(tmp_path) == 0, capsys.readouterr().err
     markers = 0
