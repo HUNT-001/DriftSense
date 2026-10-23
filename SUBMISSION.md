@@ -60,8 +60,20 @@ COOL 3.1 build on the worker.
 Every DEV and sealed result below was produced on a development machine whose
 results files record OpenCV 4.12.0<!--src:results/sealed/v2_single.json#@env.opencv--> on
 AMD64<!--src:results/sealed/v2_single.json#@env.arch-->, not OpenCV 5 and not the COOL worker.
-No OpenCV 5 re-run of these numbers exists yet, so they are OpenCV
-4.12.0<!--src:results/sealed/v2_single.json#@env.opencv--> numbers.
+A DEV-only equivalence check reran the frozen v2 engine on OpenCV
+5.0.0<!--src:results/bench/cv5_equivalence.json#@env.opencv--> over 320<!--src:results/bench/cv5_equivalence.json#pairs.decision_agreement field=n fmt=int nolabel-->
+pair evaluations and 8<!--src:results/bench/cv5_equivalence.json#episodes.outcome_agreement field=n fmt=int nolabel--> agent
+episodes. It agrees on every commit-or-escalate decision and every top-1 hit 
+(top-1 hit rate 34.4% [DEV]<!--src:results/bench/cv5_equivalence.json#pairs.top1_hit_rate.base fmt=pct--> on the old
+version and 34.4% [DEV]<!--src:results/bench/cv5_equivalence.json#pairs.top1_hit_rate.cand fmt=pct--> on the new one), and every agent episode ends with the same outcome after the same number of steps.
+The offsets are not bit-identical: 95.6% [DEV]<!--src:results/bench/cv5_equivalence.json#pairs.offset_within_0p1px_rate fmt=pct-->
+of evaluations agree within a tenth of a pixel, the median margin difference is
+0 [DEV]<!--src:results/bench/cv5_equivalence.json#pairs.margin_median_abs_diff fmt=raw--> (maximum
+5.43 [DEV]<!--src:results/bench/cv5_equivalence.json#pairs.margin_max_abs_diff fmt=f2-->), and
+9 [DEV]<!--src:results/bench/cv5_equivalence.json#pairs.offset_diff_gt_1px.n fmt=int--> evaluations differ by more
+than a pixel (largest 348.2 [DEV]<!--src:results/bench/cv5_equivalence.json#pairs.offset_max_abs_diff_px fmt=f1--> px), of which
+9 [DEV]<!--src:results/bench/cv5_equivalence.json#pairs.offset_diff_gt_1px_both_wrong.n fmt=int--> are top-1 misses on both versions.
+This check is on the development split only; the sealed numbers were not re-run.
 
 ### AWS and COOL
 

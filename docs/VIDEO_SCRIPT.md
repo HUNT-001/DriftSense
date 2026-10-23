@@ -41,4 +41,9 @@ The v1 MunichTech script is kept in `VIDEO_SCRIPT_MUNICHTECH.md`.
   65,810,000<!--src:results/sealed/agent_rules.json#metrics['agent_rules.mean_dose'].value q fmt=g--> electrons against a budget of
   48,000,000<!--src:results/sealed/agent_rules.json#metrics['dose_budget'].value q fmt=g-->, so decision rule D12 fails.
 - Sealed decision gate overall pass: `false`<!--src:results/sealed/decisions.json#overall_pass q code-->.
+- OpenCV version: the sealed numbers were produced on OpenCV
+  4.12.0<!--src:results/sealed/v2_single.json#env.opencv q-->. On DEV, OpenCV
+  5.0.0<!--src:results/bench/cv5_equivalence.json#env.opencv q--> agrees on
+  100.0<!--src:results/bench/cv5_equivalence.json#metrics['pairs.decision_agreement'].value q fmt=pct-->% of decisions and
+  100.0<!--src:results/bench/cv5_equivalence.json#metrics['pairs.top1_hit_agreement'].value q fmt=pct-->% of top-1 hits.
 - COOL: the benchmark campaign has not run yet. Do not state a COOL speed-up.
