@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import replace
 
 import pytest
@@ -30,9 +31,13 @@ def test_v2_demo_job_end_to_end(client, settings, make_worker):
         assert r.status_code == 200 and r.headers["content-type"] == "image/png"
         assert r.content[:8] == b"\x89PNG\r\n\x1a\n"
         names.append(name)
-    assert {"overlay.png", "top5_gallery.png"} <= set(names)
-    # v2 heatmaps carry no bytes: dropped with an explicit warning instead of a dangling uri
-    assert any(w.startswith("service: artifacts not materialized") for w in result.warnings)
+    # every S9 artifact is uploaded, the NCC and roughness heatmaps included (engine bytes by sha256)
+    assert {"ncc_heatmap.png", "roughness_heatmap.png", "overlay.png", "top5_gallery.png"} <= set(names)
+    assert not any(w.startswith("service: artifacts not materialized") for w in result.warnings)
+    for art in result.artifacts:
+        if art.uri.endswith(".png"):
+            body = client.get(f"/v1/jobs/{job_id}/artifacts/{art.uri.rsplit('/', 1)[-1]}").content
+            assert hashlib.sha256(body).hexdigest() == art.sha256
     r = client.get(f"/v1/jobs/{job_id}/artifacts/result.json")
     assert r.status_code == 200
     assert LocalizeResult.model_validate_json(r.content) == result

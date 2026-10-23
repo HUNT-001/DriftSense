@@ -15,11 +15,26 @@ DriftSense Pilot is an OpenCV 5 localisation engine (stages S0–S9), an
 active-perception agent with runner-enforced safety gates and an MCP server, and
 a web app on AWS with a Graviton worker built from the COOL 3.1 AMI.
 
-- Devpost text: [SUBMISSION.md](SUBMISSION.md)
-- Architecture and the OpenCV calls per stage: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- COOL on Graviton evidence: [docs/COOL_EVIDENCE.md](docs/COOL_EVIDENCE.md)
-- Responsible use: [docs/RESPONSIBLE_USE.md](docs/RESPONSIBLE_USE.md)
-- How numbers get into these docs: [docs/TEMPLATES.md](docs/TEMPLATES.md)
+## For judges: where each submission item is
+
+| OpenCV AI Competition 2026 item | Where |
+|---|---|
+| Technical report (problem, users, architecture, OpenCV 5, AWS, evaluation, limitations, responsible use) | [docs/REPORT.md](docs/REPORT.md) |
+| Devpost text | [SUBMISSION.md](SUBMISSION.md) |
+| Architecture diagram: OpenCV 5, AWS, COOL and the agent | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §1 (AWS and COOL), §2 (engine stages and their OpenCV calls) |
+| Pinned dependencies | [requirements.lock](requirements.lock) (`opencv-python-headless==5.0.0.93`), [requirements-cool.lock](requirements-cool.lock), [ui/package-lock.json](ui/package-lock.json) |
+| Build and test instructions | [Quickstart](#quickstart) below, `make check` |
+| Deployment instructions | [infra/README.md](infra/README.md) (AWS CDK, ap-south-1) |
+| Working endpoint | The CloudFront URL in [SUBMISSION.md](SUBMISSION.md#links-and-devpost-checklist) |
+| Evaluation evidence, failure cases and limitations | [SUBMISSION.md](SUBMISSION.md#evaluation), [SUBMISSION.md](SUBMISSION.md#limitations), raw numbers in [results/](results/) |
+| Best Use of COOL: COOL version, instance configuration, method, baselines, results | [docs/COOL_EVIDENCE.md](docs/COOL_EVIDENCE.md), [bench/README.md](bench/README.md) |
+| Agentic Vision: agent workflow diagram | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §3 |
+| Agentic Vision: trace where OpenCV 5 output changes the next action | [traces/demo_escalate.jsonl](traces/demo_escalate.jsonl), [traces/demo_commit.jsonl](traces/demo_commit.jsonl) |
+| Agentic Vision: task success, failure handling, human control | [SUBMISSION.md](SUBMISSION.md#the-agent-on-the-sealed-episodes), [docs/RESPONSIBLE_USE.md](docs/RESPONSIBLE_USE.md) |
+| Responsible use | [docs/RESPONSIBLE_USE.md](docs/RESPONSIBLE_USE.md) |
+| Video script | [docs/VIDEO_SCRIPT.md](docs/VIDEO_SCRIPT.md) |
+
+How numbers get into these docs: [docs/TEMPLATES.md](docs/TEMPLATES.md).
 
 ## Headline results (sealed, pre-registered)
 
@@ -71,10 +86,12 @@ Run an agent episode set on the virtual SEM (prints the four-arm summary;
 python eval/agent_eval.py --n 4 --no-write
 ```
 
-MCP server over stdio (inspect it with the MCP Inspector):
+MCP server over stdio or streamable HTTP (inspect it with the MCP Inspector). A
+`commit_stage_move` below tau is refused over MCP exactly as in the runner:
 
 ```bash
 python -m driftsense.agent.mcp_server
+python -m driftsense.agent.mcp_server --transport streamable-http --port 8001   # http://127.0.0.1:8001/mcp
 npx @modelcontextprotocol/inspector python -m driftsense.agent.mcp_server
 ```
 
@@ -109,6 +126,8 @@ not traceable to a results file.
 | `service/`, `infra/`, `ui/` | API and worker, CDK app, static web UI |
 | `bench/` | The COOL on Graviton benchmark campaign |
 | `scripts/` | Docs renderer and claims checker |
+| `data_gen/`, `localization/`, `experiments/`, `config.py`, `stage2_config.py`, `demo/` | v1 code at its original paths: the virtual SEM reuses `data_gen/` physics and the v1 baseline imports `localization/` |
+| `docs/team/` | Internal planning notes from the build; not part of the submission |
 
 ## History
 

@@ -559,6 +559,8 @@ def test_all_b_docs_render_from_real_results_and_pass_claims(tmp_path, capsys):
         "SUBMISSION.md",
         "docs/ARCHITECTURE.md",
         "docs/COOL_EVIDENCE.md",
+        "docs/PRIOR_WORK.md",
+        "docs/REPORT.md",
         "docs/RESPONSIBLE_USE.md",
         "docs/VIDEO_SCRIPT.md",
     ):
@@ -575,7 +577,7 @@ def test_all_b_docs_render_from_real_results_and_pass_claims(tmp_path, capsys):
     assert "campaign pending" in cool and "<!--src:" not in cool
     rc, rep = claims(ws, capsys, "SUBMISSION.md")
     assert rc == 0 and codes(rep) == set(), rep["findings"]
-    assert rep["summary"]["generated_docs"] == 6
+    assert rep["summary"]["generated_docs"] == 8
     # once generated, root docs are re-rendered without the flag; --check is clean
     assert render(ws, "--check") == 0
 
@@ -769,35 +771,28 @@ def test_opencv_version_subsection_both_branches(tmp_path, capsys, with_cv5):
 
 
 A_FIX = FIX / "a_report"
-A_REF = "origin/a/p9-report"
 A_PLACEHOLDER_RE = render_docs.A_PLACEHOLDER
 
 
 def _a_sources(source: str) -> dict[str, str]:
-    """A's REPORT.md / PRIOR_WORK.md: from git (A's open PR branch) or the fixture copy."""
+    """A's REPORT.md / PRIOR_WORK.md: the live templates in docs/templates/ or the fixture copy."""
     out = {}
     for name in ("REPORT.md", "PRIOR_WORK.md"):
         if source == "fixture":
             out[name] = (A_FIX / name).read_text(encoding="utf-8")
             continue
-        proc = subprocess.run(
-            ["git", "-C", str(ROOT), "show", f"{A_REF}:docs/{name}"],
-            check=False,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-        )
-        if proc.returncode != 0:
-            pytest.skip(f"{A_REF} not available: {proc.stderr.strip()}")
-        out[name] = proc.stdout
+        live = ROOT / "docs" / "templates" / (name + ".j2")
+        if not live.is_file():
+            pytest.skip(f"{live} not present")
+        out[name] = live.read_text(encoding="utf-8")
     return out
 
 
 @needs_real
-@pytest.mark.parametrize("source", ["fixture", "git"])
+@pytest.mark.parametrize("source", ["fixture", "live"])
 def test_person_a_report_resolves_every_placeholder(tmp_path, capsys, source):
-    """A's REPORT.md + PRIOR_WORK.md, used verbatim as templates (as they will be on the
-    int/ branch), render against the REAL results/ and pass check_claims."""
+    """A's REPORT.md + PRIOR_WORK.md templates render against the REAL results/ and
+    pass check_claims."""
     srcs = _a_sources(source)
     tdir = tmp_path / "docs" / "templates"
     tdir.mkdir(parents=True)

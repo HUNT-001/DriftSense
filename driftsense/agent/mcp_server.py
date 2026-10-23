@@ -1,18 +1,18 @@
-"""FastMCP server exposing the agent tools over stdio (optional).
+"""FastMCP server exposing the agent tools over stdio or streamable HTTP.
 
 The FastMCP import is GUARDED: this module imports and the tool registry works
 with ``mcp`` not installed -- only :func:`create_mcp_server` / :func:`main`
 require it. The G5 smoke test therefore exercises the real tool registry and one
-``localize`` directly (:func:`smoke`), without needing a live stdio transport.
+``localize`` directly (:func:`smoke`), without needing a live transport.
 
-Enabling a real stdio server (and CI-level MCP Inspector testing) needs ``mcp``
-added to ``requirements.in`` on a ``shared/*`` branch (``make lock`` + both
-approvals) -- out of scope for this A-owned PR; see the PR handoff and
-``driftsense/agent/README.md``.
+The runner's hard safety gate (never commit below tau) is enforced here too: an
+MCP client calling ``commit_stage_move`` without a prior ``localize`` whose
+decision was ``commit`` is refused and the refusal is traced (:func:`gated_commit`).
 
-Run (once ``mcp`` is available)::
+Run::
 
-    python -m driftsense.agent.mcp_server            # stdio, default twin
+    python -m driftsense.agent.mcp_server                                   # stdio
+    python -m driftsense.agent.mcp_server --transport streamable-http --port 8001   # http://127.0.0.1:8001/mcp
     npx @modelcontextprotocol/inspector python -m driftsense.agent.mcp_server
 """
 
@@ -87,8 +87,38 @@ def smoke(seed: int = 7, family: str = "dram") -> dict[str, Any]:
     }
 
 
-def create_mcp_server(server_name: str = "driftsense-agent", **registry_kwargs: Any) -> Any:
-    """Build a FastMCP server exposing the six agent tools over stdio.
+def gated_commit(reg: ToolRegistry, **kwargs: Any) -> dict[str, Any]:
+    """``commit_stage_move`` behind the runner's hard gate: refuse unless the last
+    ``localize`` decided ``commit`` (margin >= tau). A refusal moves nothing."""
+    last = reg.last_result
+    if last is None or last.margin.decision != "commit":
+        margin = None if last is None else last.margin.margin
+        because = (
+            "SAFETY: commit refused, no localize result yet"
+            if last is None
+            else f"SAFETY: commit refused at margin {margin:.3f} < tau {last.margin.tau:.3f}"
+        )
+        reg.trace.emit(
+            "escalate",
+            tool="commit_stage_move",
+            args=CommitStageMoveArgs(**kwargs).model_dump(),
+            result_summary={"refused": True},
+            margin=margin,
+            tau=reg.tau,
+            because=because,
+        )
+        return {"refused": True, "reason": because, "next": "request_human_approval"}
+    return reg.commit_stage_move(**kwargs)
+
+
+def create_mcp_server(
+    server_name: str = "driftsense-agent",
+    *,
+    host: str = "127.0.0.1",
+    port: int = 8000,
+    **registry_kwargs: Any,
+) -> Any:
+    """Build a FastMCP server exposing the six agent tools (stdio or streamable HTTP).
 
     Imports FastMCP lazily; raises a clear error if ``mcp`` is not installed.
     """
@@ -101,7 +131,7 @@ def create_mcp_server(server_name: str = "driftsense-agent", **registry_kwargs: 
         ) from exc
 
     reg = build_registry(**registry_kwargs)
-    mcp = FastMCP(server_name)
+    mcp = FastMCP(server_name, host=host, port=port)
 
     @mcp.tool()
     def acquire(args: AcquireArgs) -> dict:
@@ -117,7 +147,8 @@ def create_mcp_server(server_name: str = "driftsense-agent", **registry_kwargs: 
 
     @mcp.tool()
     def commit_stage_move(args: CommitStageMoveArgs) -> dict:
-        return reg.commit_stage_move(**args.model_dump())
+        """Move the stage; refused unless the last localize decided commit (margin >= tau)."""
+        return gated_commit(reg, **args.model_dump())
 
     @mcp.tool()
     def request_human_approval(args: ApprovalArgs) -> dict:
@@ -130,8 +161,17 @@ def create_mcp_server(server_name: str = "driftsense-agent", **registry_kwargs: 
     return mcp
 
 
-def main() -> None:  # pragma: no cover - entry point, needs mcp + a live transport
-    create_mcp_server().run()
+def main(argv: list[str] | None = None) -> None:  # pragma: no cover - needs mcp + a live transport
+    import argparse
+
+    ap = argparse.ArgumentParser(description="DriftSense agent tools over MCP")
+    ap.add_argument("--transport", choices=["stdio", "streamable-http"], default="stdio")
+    ap.add_argument("--host", default="127.0.0.1")
+    ap.add_argument("--port", type=int, default=8000)
+    ap.add_argument("--family", default="dram")
+    ap.add_argument("--seed", type=int, default=7)
+    a = ap.parse_args(argv)
+    create_mcp_server(host=a.host, port=a.port, family=a.family, seed=a.seed).run(transport=a.transport)
 
 
 if __name__ == "__main__":  # pragma: no cover

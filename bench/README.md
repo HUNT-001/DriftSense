@@ -86,7 +86,7 @@ captured from the engine; the shapes depend on the capture pair.
 | `minMaxLoc.s1_peak_f32` | S1 | kleidicv | `lattice.py:96` (strongest) | `float32[1024, 1024]` | 2-33 per detect_lattice (peak search) | float32 input: KleidiCV coverage unverified (generic OpenCV path if unsupported); Python minMaxLoc wraps minMaxIdx |
 | `pyrDown.s2_coarse_u8` | S2 | kleidicv | `rectify.py:49` (rectify) | `uint8[1000, 1000]` | 1 |  |
 | `warpPerspective.s2_hypothesis_u8` | S2 | kleidicv | `rectify.py:68` (rectify) | `uint8[500, 500], float64[3, 3], (500,500), flags=1` | up to 4 (hypotheses) | half-res coarse frame, INTER_LINEAR, BORDER_CONSTANT |
-| `warpPerspective.s2_derotate_u8` | S2 | kleidicv | `engine.py:108` (_warp) | `uint8[1000, 1000], float64[3, 3], (1000,1000), flags=1, borderMode=4` | 0-2 (only when the axis residual >= 0.75 deg) | BORDER_REFLECT101: KleidiCV border coverage unverified |
+| `warpPerspective.s2_derotate_u8` | S2 | kleidicv | `engine.py:110` (_warp) | `uint8[1000, 1000], float64[3, 3], (1000,1000), flags=1, borderMode=4` | 0-2 (only when the axis residual >= 0.75 deg) | BORDER_REFLECT101: KleidiCV border coverage unverified |
 | `sepFilter2D.s3_along_f32` | S3 | kleidicv | `roughness.py:111,113` (residual) | `float32[1000, 1000], 5, float32[1], float32[41]` | 2 | float32 input: KleidiCV coverage unverified (generic OpenCV path if unsupported); 1-tap x k along-line Gaussian, k = 2 lattice periods snapped to an odd size |
 | `Sobel.s3_grad_f32` | S3 | kleidicv | `roughness.py:118,119` (residual) | `float32[1000, 1000], 5, 1, 0, ksize=3` | 4 (dx, dy) x 2 frames | float32 input: KleidiCV coverage unverified (generic OpenCV path if unsupported); ksize 3, dx and dy |
 | `magnitude.s3_grad_f32` | S3 | control | `roughness.py:120` (residual) | `float32[1000, 1000], float32[1000, 1000]` | 2 |  |
@@ -123,7 +123,7 @@ Engine cv2 calls that are deliberately not timed:
 - `cv2.cvtColor` at `ingest.py:51` (_to_gray): only for 3-channel input; every DEV/agent frame is single-channel
 - `cv2.getOptimalDFTSize` at `lattice.py:54` (_power_spectrum): scalar helper (returns 1024 here)
 - `cv2.getRotationMatrix2D` at `rectify.py:41` (_homography): scalar 2x3 matrix
-- `cv2.getRotationMatrix2D` at `engine.py:100` (_rotation): scalar 2x3 matrix
+- `cv2.getRotationMatrix2D` at `engine.py:102` (_rotation): scalar 2x3 matrix
 - `cv2.getGaussianKernel` at `roughness.py:109` (residual): builds a 1-D kernel (k taps)
 - `cv2.getStructuringElement` at `roughness.py:123,124` (residual): builds a 3x3 element
 - `cv2.getStructuringElement` at `score.py:59` (_nms_peaks): builds a 5x5 element

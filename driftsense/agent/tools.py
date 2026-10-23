@@ -20,6 +20,7 @@ enumerates hypotheses internally); ``top_k`` maps onto ``Budget.max_candidates``
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from typing import Any, Literal
 
@@ -177,6 +178,7 @@ class ToolRegistry:
     def acquire(self, **kwargs: Any) -> dict[str, Any]:
         args = AcquireArgs(**kwargs)
         self.trace.emit("tool_call", tool="acquire", args=args.model_dump())
+        t0 = time.perf_counter()
         png, meta = self.sem.acquire(
             tuple(args.center_nm), args.fov_nm, args.dwell_us, args.scan_rotation_deg
         )
@@ -197,7 +199,8 @@ class ToolRegistry:
             "dose_this_acq": meta["dose_this_acq"],
             "cumulative_dose": meta["cumulative_dose"],
         }
-        self.trace.emit("tool_result", tool="acquire", result_summary=summary, latency_ms=meta["dwell_us"])
+        latency_ms = (time.perf_counter() - t0) * 1000.0  # wall time of the acquisition, not the dwell
+        self.trace.emit("tool_result", tool="acquire", result_summary=summary, latency_ms=latency_ms)
         return summary
 
     def _adopt_reference(self, img: np.ndarray) -> None:

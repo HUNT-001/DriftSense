@@ -21,7 +21,7 @@ is self-describing evidence rather than a log to be interpreted after the fact.
 | `policy_llm.py` | optional LLM planner, behind a flag; proposes only, never commits |
 | `runner.py` | the orchestration loop and the hard safety gate |
 | `trace.py` | the `TraceEvent` sink (`traces/<run_id>.jsonl`) |
-| `mcp_server.py` | FastMCP server exposing the tools over stdio (optional) |
+| `mcp_server.py` | FastMCP server exposing the tools over stdio or streamable HTTP |
 
 ## The loop, in words
 
@@ -59,18 +59,20 @@ sees it.
 
 ## MCP server
 
-`mcp_server.py` exposes the same six tools over stdio with FastMCP. The FastMCP
-import is **guarded**: the agent, the rules policy and the G5 episode all run with
-`mcp` not installed, and the offline smoke path (`smoke()` / `list_tools()`)
-exercises the real tool registry and one `localize` without a live transport.
-
-Once `mcp` is available (see the handoff note — it must be added to
-`requirements.in` on a `shared/*` branch with `make lock` and both approvals),
-the server runs under the MCP Inspector:
+`mcp_server.py` exposes the same six tools with FastMCP, over stdio (default) or
+streamable HTTP. The FastMCP import is **guarded**: the agent, the rules policy and
+the G5 episode all run without `mcp`, and the offline smoke path (`smoke()` /
+`list_tools()`) exercises the real tool registry and one `localize` without a live
+transport. `commit_stage_move` over MCP is behind the same hard gate as the runner:
+it is refused (and an `escalate` event is traced) unless the last `localize`
+decided `commit`.
 
 ```
-python -m driftsense.agent.mcp_server
+python -m driftsense.agent.mcp_server                                    # stdio
+python -m driftsense.agent.mcp_server --transport streamable-http --port 8001
+#   -> MCP endpoint http://127.0.0.1:8001/mcp (Inspector: transport "Streamable HTTP")
 npx @modelcontextprotocol/inspector python -m driftsense.agent.mcp_server
+python scripts/mcp_demo_client.py                                        # scripted client
 ```
 
 Inspector lists the six tools from their pydantic schemas; calling `acquire`
