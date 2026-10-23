@@ -5,4 +5,4 @@ OWNER=$(git config --get driftsense.owner || echo "UNSET - run: git config drift
 BR=$(git branch --show-current)
 COUNTS=$(git rev-list --left-right --count origin/main...HEAD 2>/dev/null || echo "? ?")
 echo "DriftSense session: owner=Person ${OWNER} branch=${BR} behind_main=${COUNTS%%[[:space:]]*} ahead=${COUNTS##*[[:space:]]}"
-echo "Rules: CLAUDE.md. Start with /sync. Today's schedule: docs/PLAN.md."
+echo "Rules: CLAUDE.md. Start with /sync. Today's schedule: docs/team/PLAN.md."
