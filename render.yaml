@@ -1,0 +1,8 @@
+# Render Blueprint: free web service from the repo Dockerfile (sleeps when idle; first load ~1 min).
+services:
+  - type: web
+    name: driftsense-pilot
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz

@@ -13,7 +13,47 @@ Find the right copy of a structure on a periodic semiconductor array, say how
 sure you are, and let an agent re-image or ask a human instead of guessing.
 DriftSense Pilot is an OpenCV 5 localisation engine (stages S0–S9), an
 active-perception agent with runner-enforced safety gates and an MCP server, and
-a web app on AWS with a Graviton worker built from the COOL 3.1 AMI.
+a web app with an AWS deployment (CDK, Graviton worker built from the COOL 3.1 AMI) that
+also runs free in one container.
+
+<p align="center">
+  <img src="docs/media/demo_escalate.gif" alt="DriftSense agent episode: low margin, re-acquire, escalate to an operator, approve" width="860">
+</p>
+
+<p align="center">
+  <b>The agent compares the OpenCV 5 uniqueness margin with a calibrated threshold, re-images when it
+  can, and asks a human when it cannot. It never moves the stage below the threshold.</b>
+</p>
+
+## See it in action
+
+| Confident commit (FinFET) | Re-image, then commit (DRAM) |
+|---|---|
+| ![FinFET episode: margin above tau, stage correction committed](docs/media/demo_commit.gif) | ![DRAM episode: first frame below tau, extra acquisition, commit](docs/media/demo_reimage.gif) |
+
+| Pick a demo site | Operator approval card |
+|---|---|
+| ![Home page with eight demo sites](docs/media/ui_home.png) | ![Approval card: top three candidates, margin versus tau](docs/media/ui_approval.png) |
+
+Frequency tells you where a copy could be; roughness tells you which one is real:
+
+![NCC heatmap, roughness heatmap and match overlay](docs/media/ui_heatmaps.png)
+
+| How the engine works | How the agent decides |
+|---|---|
+| ![OpenCV 5 pipeline: ingest, lattice FFT, rectify, roughness, candidates, cascade, subpixel, calibrated margin](docs/media/fig_pipeline.png) | ![Agent loop: acquire, localize, margin versus tau, then commit, re-acquire, re-localize or ask a human](docs/media/fig_agent_loop.png) |
+
+![AWS architecture: CloudFront, API Gateway and Lambda, SQS, Graviton4 COOL worker, S3 and DynamoDB, CloudWatch](docs/media/fig_aws.png)
+
+## Try it now (no AWS account)
+
+```bash
+git clone https://github.com/HUNT-001/DriftSense && cd DriftSense
+docker build -t driftsense . && docker run -p 7860:7860 driftsense   # open http://localhost:7860
+```
+
+Free hosting (Hugging Face Space or Render) and the no-Docker route are in
+[docs/FREE_DEPLOY.md](docs/FREE_DEPLOY.md).
 
 ## For judges: where each submission item is
 
@@ -25,7 +65,7 @@ a web app on AWS with a Graviton worker built from the COOL 3.1 AMI.
 | Pinned dependencies | [requirements.lock](requirements.lock) (`opencv-python-headless==5.0.0.93`), [requirements-cool.lock](requirements-cool.lock), [ui/package-lock.json](ui/package-lock.json) |
 | Build and test instructions | [Quickstart](#quickstart) below, `make check` |
 | Deployment instructions | [infra/README.md](infra/README.md) (AWS CDK, ap-south-1) |
-| Working endpoint | The CloudFront URL in [SUBMISSION.md](SUBMISSION.md#links-and-devpost-checklist) |
+| Working endpoint | Live URL in [SUBMISSION.md](SUBMISSION.md#links-and-devpost-checklist); or run it yourself: [docs/FREE_DEPLOY.md](docs/FREE_DEPLOY.md) (one container, no AWS account) |
 | Evaluation evidence, failure cases and limitations | [SUBMISSION.md](SUBMISSION.md#evaluation), [SUBMISSION.md](SUBMISSION.md#limitations), raw numbers in [results/](results/) |
 | Best Use of COOL: COOL version, instance configuration, method, baselines, results | [docs/COOL_EVIDENCE.md](docs/COOL_EVIDENCE.md), [bench/README.md](bench/README.md) |
 | Agentic Vision: agent workflow diagram | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §3 |
@@ -107,7 +147,7 @@ Web UI in development mode (Node 22):
 cd ui && npm ci && npm run dev
 ```
 
-Deploy to AWS (ap-south-1): see [infra/README.md](infra/README.md).
+Deploy to AWS (ap-south-1): see [infra/README.md](infra/README.md). Free container hosting: [docs/FREE_DEPLOY.md](docs/FREE_DEPLOY.md).
 
 Docs: `python scripts/render_docs.py` regenerates every generated page from
 `results/**/*.json`, and `python scripts/check_claims.py` fails if any number is
