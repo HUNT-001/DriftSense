@@ -1,4 +1,13 @@
 <!-- banner -->
+---
+title: DriftSense
+emoji: 🔬
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 7860
+---
+
 ![Drift-Sense](docs/images/banner.png)
 
 <p align="center">
