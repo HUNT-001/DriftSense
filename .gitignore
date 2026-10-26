@@ -75,3 +75,6 @@ infra/.venv/
 # deploy outputs and smoke evidence (account-specific)
 infra/cdk-outputs.json
 smoke-evidence.json
+
+# Sealed evaluation set: never tracked (ground truth lives here)
+outputs/dataset_test/
