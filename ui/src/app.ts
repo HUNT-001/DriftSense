@@ -78,13 +78,60 @@ export function mountApp(root: HTMLElement, api: Api, config: AppConfig, win: Wi
       )
     : null;
 
+  // Theme toggle state
+  const THEMES = ['auto', 'dark', 'light'] as const;
+  type ThemeMode = (typeof THEMES)[number];
+  const readTheme = (): ThemeMode => {
+    try {
+      const saved = win.localStorage.getItem('driftsense.theme') as ThemeMode;
+      return THEMES.includes(saved) ? saved : 'auto';
+    } catch {
+      return 'auto';
+    }
+  };
+  let currentTheme = readTheme();
+  const applyTheme = (t: ThemeMode) => {
+    currentTheme = t;
+    try {
+      win.localStorage.setItem('driftsense.theme', t);
+    } catch {
+      /* ignore */
+    }
+    if (t === 'auto') {
+      win.document.documentElement.removeAttribute('data-theme');
+    } else {
+      win.document.documentElement.setAttribute('data-theme', t);
+    }
+  };
+  applyTheme(currentTheme);
+
+  const themeLabels: Record<ThemeMode, string> = {
+    auto: 'Theme: Auto',
+    dark: 'Theme: Dark',
+    light: 'Theme: Light',
+  };
+  const themeToggle = h('button', { type: 'button', class: 'theme-toggle-btn', id: 'theme-toggle' }, themeLabels[currentTheme]);
+  themeToggle.addEventListener('click', () => {
+    const next: ThemeMode = currentTheme === 'auto' ? 'dark' : currentTheme === 'dark' ? 'light' : 'auto';
+    applyTheme(next);
+    themeToggle.textContent = themeLabels[next];
+  });
+
+  const brandMark = h('span', { class: 'brand-mark', 'aria-hidden': 'true' }, '⨁');
+  const brandLink = h('a', { class: 'brand', href: '#/' }, brandMark, 'DriftSense Pilot');
+
   root.append(
     skip,
     banner ?? '',
     h(
       'header',
       { class: 'site-header' },
-      h('div', { class: 'wrap header-inner' }, h('a', { class: 'brand', href: '#/' }, 'DriftSense Pilot'), h('nav', { 'aria-label': 'Main' }, h('ul', null, navLinks.map((a) => h('li', null, a))))),
+      h(
+        'div',
+        { class: 'wrap header-inner' },
+        brandLink,
+        h('nav', { 'aria-label': 'Main' }, h('ul', null, ...navLinks.map((a) => h('li', null, a)), h('li', null, themeToggle))),
+      ),
     ),
     h('div', { class: 'wrap' }, main),
     h('footer', { class: 'site-footer' }, h('div', { class: 'wrap' }, versionLine, workerLine, modeLink)),

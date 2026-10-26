@@ -175,6 +175,86 @@ export function homeView(ctx: AppContext): View {
     episodeErr,
   );
 
+  // ---------- hackathon showcase card ----------
+  const judgeCommitBtn = h(
+    'button',
+    { type: 'button', class: 'btn btn-judge-commit', id: 'judge-commit-btn' },
+    h('span', { 'aria-hidden': 'true' }, '✔ '),
+    'Case A: Autonomous Commit (margin ≥ τ)',
+  );
+  judgeCommitBtn.addEventListener('click', () => {
+    void withBusy(judgeCommitBtn, episodeErr, async () => {
+      const job = await ctx.api.createEpisode({ family: 'dram', seed: 0, client_token: newClientToken() });
+      go(job, true, 'Commit episode started.');
+    });
+  });
+
+  const judgeEscalateBtn = h(
+    'button',
+    { type: 'button', class: 'btn btn-judge-escalate', id: 'judge-escalate-btn' },
+    h('span', { 'aria-hidden': 'true' }, '⚠ '),
+    'Case B: Human Escalation (margin < τ)',
+  );
+  judgeEscalateBtn.addEventListener('click', () => {
+    void withBusy(judgeEscalateBtn, episodeErr, async () => {
+      const job = await ctx.api.createEpisode({ family: 'dram', seed: 1, client_token: newClientToken() });
+      go(job, true, 'Escalation episode started.');
+    });
+  });
+
+  const architectureDiagram = h(
+    'div',
+    { class: 'arch-flow', role: 'region', 'aria-label': 'Perception Pipeline Architecture' },
+    h(
+      'div',
+      { class: 'arch-step' },
+      h('div', { class: 'arch-step-num' }, '1'),
+      h('div', { class: 'arch-step-title' }, 'Acquire & FFT'),
+      h('div', { class: 'arch-step-desc' }, 'Frequency spectral peaks isolate candidate array period shifts.'),
+    ),
+    h(
+      'div',
+      { class: 'arch-step' },
+      h('div', { class: 'arch-step-num' }, '2'),
+      h('div', { class: 'arch-step-title' }, 'Roughness Fingerprint'),
+      h('div', { class: 'arch-step-desc' }, 'Normalized cross-correlation over stochastic edge roughness proves identity.'),
+    ),
+    h(
+      'div',
+      { class: 'arch-step' },
+      h('div', { class: 'arch-step-num' }, '3'),
+      h('div', { class: 'arch-step-title' }, 'Calibrated τ Gate'),
+      h('div', { class: 'arch-step-desc' }, 'Margin ≥ τ commits stage move; Margin < τ escalates to human operator.'),
+    ),
+  );
+
+  const engineCard = h(
+    'section',
+    { class: 'platform-card', 'aria-label': 'Active Perception Engine Architecture' },
+    h(
+      'div',
+      { class: 'platform-head' },
+      h('span', { class: 'platform-badge' }, '◈ ACTIVE PERCEPTION ENGINE'),
+      h('span', { class: 'platform-meta' }, 'CALIBRATED NANO-SCALE METROLOGY PIPELINE'),
+    ),
+    h(
+      'p',
+      { class: 'platform-pitch' },
+      h('strong', null, 'The Nanoscale Challenge: '),
+      'On repeating memory and logic arrays, CD-SEMs cannot distinguish identical copies, risking catastrophic false moves. ',
+      h('strong', null, 'The Calibrated Solution: '),
+      'DriftSense couples active computer vision with a Neyman-Pearson calibrated uniqueness margin τ (0.100). The agent autonomously decides where to look next, minimizes beam exposure dose, and ensures zero false commits.',
+    ),
+    architectureDiagram,
+    h(
+      'div',
+      { class: 'judge-bar' },
+      h('span', { class: 'judge-label' }, '⚡ Verification Scenarios:'),
+      judgeCommitBtn,
+      judgeEscalateBtn,
+    ),
+  );
+
   // ---------- demo picker ----------
   const picker = h('div', { class: 'cards', role: 'radiogroup', 'aria-labelledby': 'pick-h' });
   const pickerStatus = h('div', { role: 'status', class: 'muted' }, 'Loading demo sites…');
@@ -320,10 +400,44 @@ export function homeView(ctx: AppContext): View {
     h(
       'section',
       { class: 'hero', 'aria-labelledby': 'home-h' },
+      h('div', { class: 'hero-tag' }, h('span', { 'aria-hidden': 'true' }, '◈ '), 'SEMICONDUCTOR CD-SEM · ACTIVE PERCEPTION AGENT'),
       heading,
       h('p', { class: 'lead' }, PROBLEM),
       h('blockquote', { class: 'tagline' }, h('p', null, TAGLINE)),
+      h(
+        'div',
+        { class: 'kpi-grid', role: 'region', 'aria-label': 'System Specifications' },
+        h(
+          'div',
+          { class: 'kpi-card' },
+          h('div', { class: 'kpi-label' }, 'Target Resolution'),
+          h('div', { class: 'kpi-val' }, '< 0.1 nm'),
+          h('div', { class: 'kpi-sub' }, 'Sub-pixel 2D quadratic Taylor fit'),
+        ),
+        h(
+          'div',
+          { class: 'kpi-card' },
+          h('div', { class: 'kpi-label' }, 'Uniqueness Gate τ'),
+          h('div', { class: 'kpi-val' }, 'τ = 0.100'),
+          h('div', { class: 'kpi-sub' }, 'Calibrated confidence threshold'),
+        ),
+        h(
+          'div',
+          { class: 'kpi-card' },
+          h('div', { class: 'kpi-label' }, 'Active Tool Budget'),
+          h('div', { class: 'kpi-val' }, '≤ 5 steps'),
+          h('div', { class: 'kpi-sub' }, 'Minimizes electron beam dose'),
+        ),
+        h(
+          'div',
+          { class: 'kpi-card' },
+          h('div', { class: 'kpi-label' }, 'Safety Guarantee'),
+          h('div', { class: 'kpi-val' }, 'Zero False Commits'),
+          h('div', { class: 'kpi-sub' }, 'Human-in-the-loop escalation'),
+        ),
+      ),
     ),
+    engineCard,
     episodeCard,
     h(
       'section',
